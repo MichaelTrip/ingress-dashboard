@@ -5,3 +5,4 @@ pytest
 semantic-version==2.10.0
 python-socketio
 flask-socketio
+eventlet
