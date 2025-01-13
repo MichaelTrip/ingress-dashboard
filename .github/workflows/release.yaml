@@ -19,12 +19,6 @@ jobs:
       packages: write
 
     steps:
-    - name: Lowercase Repository Owner
-      id: repo
-      run: |
-        REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-        echo "repo=$REPO" >> $GITHUB_OUTPUT
-
     - name: Checkout code
       uses: actions/checkout@v3
 
@@ -32,6 +26,12 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: '3.9'
+
+    - name: Lowercase Repository
+      id: repo
+      run: |
+        REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+        echo "repo=$REPO" >> $GITHUB_OUTPUT
 
     - name: Generate Version
       id: version
