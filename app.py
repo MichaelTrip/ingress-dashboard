@@ -64,6 +64,9 @@ def load_kubernetes_config():
             return False
 
 def get_ingress_resources(filters=None, force_refresh=False):
+    """
+    Retrieve Ingress resources with optional filtering
+    """
     # Ensure Kubernetes configuration is loaded
     if not load_kubernetes_config():
         logger.warning("Cannot load Kubernetes configuration")
@@ -133,6 +136,9 @@ def get_ingress_resources(filters=None, force_refresh=False):
         return filtered_resources if filtered_resources else generate_mock_ingresses()
 
 def generate_mock_ingresses():
+    """
+    Generate mock Ingress resources for testing or when no resources are found
+    """
     return [
         {
             'name': 'example-ingress-1',
@@ -153,36 +159,23 @@ def generate_mock_ingresses():
     ]
 
 def create_app(test_config=None):
+    """
+    Create and configure the Flask application
+    """
     app = Flask(__name__)
     socketio = SocketIO(
-        app,
+app,
         cors_allowed_origins="*",
         ping_timeout=30,
         ping_interval=10,
         async_mode='threading'
     )
 
-    # If test configuration is provided, override get_ingress_resources
-    global INGRESS_CACHE
-    if test_config and 'mock_resources' in test_config:
-        def get_ingress_resources(filters=None, force_refresh=False):
-            mock_resources = test_config['mock_resources']
-
-            if filters:
-                mock_resources = [
-                    resource for resource in mock_resources
-                    if all(
-                        str(resource.get(key, '')).lower() == str(value).lower()
-                        for key, value in filters.items()
-                    )
-                ]
-
-            return mock_resources
-
-    def background_update():
+    # Explicitly define background_update with a reference to get_ingress_resources
+    def background_update(get_ingress_resources_func):
         while True:
             try:
-                ingresses = get_ingress_resources(force_refresh=True)
+                ingresses = get_ingress_resources_func(force_refresh=True)
                 socketio.emit('ingress_update', ingresses)
             except Exception as e:
                 logger.error(f"Background update failed: {e}")
@@ -194,7 +187,7 @@ def create_app(test_config=None):
         try:
             # Quick health check
             status = {
-                'kubernetes_available': load_kubernetes_config() if not test_config else True,
+                'kubernetes_available': load_kubernetes_config(),
                 'ingress_resources_count': len(get_ingress_resources())
             }
             return jsonify(status), 200
@@ -228,9 +221,8 @@ def create_app(test_config=None):
             traceback.print_exc()
             socketio.emit('ingress_update', generate_mock_ingresses())
 
-    # Start background thread only if not in test mode
-    if not test_config:
-        socketio.start_background_task(background_update)
+    # Start background thread
+    socketio.start_background_task(background_update, get_ingress_resources)
 
     return app, socketio
 
@@ -262,4 +254,3 @@ if __name__ == '__main__':
         port=5000,
         debug=True
     )
-
