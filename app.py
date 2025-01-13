@@ -3,7 +3,7 @@ from flask import Flask, render_template
 from kubernetes import client, config
 
 
-logger = logging.getConfig(
+logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
@@ -37,9 +37,8 @@ def get_ingress_resources():
 
             ingress_class = (
                 ing.spec.ingress_class_name or
-                getattr(ing.spec, 'backend', None).resource.kind
-                if getattr(ing.spec, 'backend', None)
-                else 'Default'
+                (getattr(ing.spec, 'backend', None).resource.kind
+                 if getattr(ing.spec, 'backend', None) else 'Default')
             )
 
             status = 'Active' if ing.status.load_balancer.ingress else 'Pending'

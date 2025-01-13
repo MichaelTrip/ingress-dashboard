@@ -1,3 +1,4 @@
 flask
 kubernetes
 gunicorn
+pytest
