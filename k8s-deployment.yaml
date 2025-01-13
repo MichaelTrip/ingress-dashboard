@@ -17,7 +17,7 @@ spec:
       serviceAccountName: ingress-dashboard-sa
       containers:
       - name: ingress-dashboard
-        image: ghcr.io/michaeltrip/ingress-dashboard:v0.1.0-20250113195517
+        image: ghcr.io/michaeltrip/ingress-dashboard:v0.1.0-20250113200537
         imagePullPolicy: Always
         ports:
         - containerPort: 5000
@@ -32,14 +32,17 @@ spec:
           httpGet:
             path: /health
             port: 5000
-          initialDelaySeconds: 30
+          initialDelaySeconds: 15
           periodSeconds: 10
+          failureThreshold: 3
+
         readinessProbe:
           httpGet:
-            path: /health
+            path: /ready
             port: 5000
-          initialDelaySeconds: 15
+          initialDelaySeconds: 30
           periodSeconds: 5
+          failureThreshold: 3
 
 ---
 apiVersion: v1
