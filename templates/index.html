@@ -6,193 +6,293 @@
     <title>Kubernetes Ingress Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
     <style>
         :root {
             --primary-color: #3498db;
             --secondary-color: #2ecc71;
             --background-color: #f4f6f9;
-            --card-hover-color: #f8f9fa;
         }
 
         body {
             background-color: var(--background-color);
-            font-family: 'Inter', 'Arial', sans-serif;
+            font-family: 'Arial', sans-serif;
         }
 
-        .dashboard-header {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            color: white;
-            padding: 2rem 0;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        .filter-section {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 15px;
+            margin-bottom: 20px;
         }
 
         .card {
             transition: all 0.3s ease;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            border: none;
         }
 
         .card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
         }
 
         .status-badge {
             font-size: 0.8rem;
-            padding: 0.25rem 0.5rem;
         }
 
-        .hostname-link {
-            color: var(--primary-color);
-            text-decoration: none;
-            transition: color 0.2s ease;
+        .connection-status {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
         }
 
-        .hostname-link:hover {
-            color: var(--secondary-color);
-            text-decoration: underline;
-        }
-
-        .empty-state {
-            background-color: #f8f9fa;
-            border: 2px dashed #6c757d;
-            border-radius: 10px;
-            padding: 2rem;
-            text-align: center;
+        .filter-buttons {
+            display: flex;
+            align-items: end;
+            gap: 10px;
         }
     </style>
 </head>
 <body>
     <div class="container-fluid">
-        <header class="dashboard-header text-center mb-4">
+        <header class="bg-primary text-white text-center py-4 mb-4">
             <div class="container">
-                <h1 class="display-5">
-                    <i class="bi bi-cloud-network me-2"></i>Kubernetes Ingress Dashboard
-                </h1>
-                <p class="lead">Real-time Cluster Network Insights</p>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div></div>
+                    <h1>
+                        <i class="bi bi-cloud-network me-2"></i>
+                        Kubernetes Ingress Dashboard
+                    </h1>
+                    <div>
+                        <a href="https://github.com/michaeltrip/ingress-dashboard"
+                           target="_blank"
+                           class="btn btn-outline-light btn-sm"
+                           title="View on GitHub">
+                            <i class="bi bi-github me-2"></i>v1.0.0
+                        </a>
+                    </div>
+                </div>
             </div>
         </header>
 
+        <!-- Connection Status -->
+        <div id="connectionStatus" class="connection-status">
+            <span id="connectionBadge" class="badge bg-warning">
+                <i class="bi bi-wifi-off me-2"></i>Connecting...
+            </span>
+        </div>
+
         <div class="container">
-            {% if ingresses %}
-                <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-                    {% for ingress in ingresses %}
-                    <div class="col">
-                        <div class="card h-100">
-                            <div class="card-body">
-                                <h5 class="card-title">
-                                    {% if ingress.status == 'No Resources' or ingress.status == 'Error Retrieving Resources' %}
-                                        <i class="bi bi-exclamation-triangle text-warning me-2"></i>{{ ingress.status }}
-                                    {% else %}
-                                        <i class="bi bi-globe me-2"></i>{{ ingress.name }}
-                                    {% endif %}
-                                </h5>
-                                <p class="card-text">
-                                    {% if ingress.status == 'No Resources' %}
-                                        <div class="alert alert-info">
-                                            <strong>No Ingress Resources Found</strong>
-                                            <p>There are currently no ingress resources in your Kubernetes cluster.</p>
-                                            <hr>
-                                            <h6>Troubleshooting Tips:</h6>
-                                            <ul>
-                                                <li>Check your cluster configuration</li>
-                                                <li>Create ingress resources</li>
-                                                <li>Verify cluster connectivity</li>
-                                            </ul>
-                                            <button onclick="window.location.reload()" class="btn btn-sm btn-outline-primary">
-                                                <i class="bi bi-arrow-clockwise me-2"></i>Refresh
-                                            </button>
-                                        </div>
-                                    {% elif ingress.status == 'Error Retrieving Resources' %}
-                                        <div class="alert alert-danger">
-                                            <strong>Error Retrieving Ingress Resources</strong>
-                                            <p>Unable to fetch ingress information from the cluster.</p>
-                                            <hr>
-                                            <h6>Possible Causes:</h6>
-                                            <ul>
-                                                <li>Network connectivity issues</li>
-                                                <li>Kubernetes API access problems</li>
-                                                <li>Insufficient permissions</li>
-                                            </ul>
-                                            <button onclick="window.location.reload()" class="btn btn-sm btn-outline-danger">
-                                                <i class="bi bi-arrow-clockwise me-2"></i>Retry
-                                            </button>
-                                        </div>
-                                    {% else %}
-                                        <strong>Namespace:</strong> {{ ingress.namespace }}<br>
-                                        <strong>Hostname:</strong>
-                                        <a href="http://{{ ingress.hostname }}"
-                                           target="_blank"
-                                           class="hostname-link">
-                                            {{ ingress.hostname }}
-                                        </a><br>
-                                        <strong>Ingress Class:</strong> {{ ingress.ingress_class }}<br><strong>Status:</strong>
-                                        <span class="badge {% if ingress.status == 'Active' %}bg-success{% else %}bg-warning{% endif %}">
-                                            {{ ingress.status }}
-                                        </span>
-                                    {% endif %}
-                                </p>
-                            </div>
-                        </div>
+            <!-- Filtering Section -->
+            <div class="filter-section mb-4">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label class="form-label">Namespace</label>
+                        <select id="namespaceFilter" class="form-select">
+                            <option value="">All Namespaces</option>
+                        </select>
                     </div>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <div class="empty-state">
-                    <i class="bi bi-display display-4 text-muted mb-3"></i>
-                    <h3>No Ingress Resources Found</h3>
-                    <p class="text-muted">
-                        There are currently no ingress resources in your Kubernetes cluster.
-                        Check your cluster configuration or create some ingress resources.
-                    </p>
-                    <div class="d-flex justify-content-center">
-                        <button onclick="window.location.reload()" class="btn btn-outline-secondary">
-                            <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+                    <div class="col-md-3">
+                        <label class="form-label">Ingress Class</label>
+                        <select id="ingressClassFilter" class="form-select">
+                            <option value="">All Classes</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Status</label>
+                        <select id="statusFilter" class="form-select">
+                            <option value="">All Statuses</option>
+                            <option value="Active">Active</option>
+                            <option value="Pending">Pending</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 filter-buttons">
+                        <button id="applyFiltersBtn" class="btn btn-primary flex-grow-1">
+                            <i class="bi bi-funnel me-2"></i>Apply Filters
+                        </button>
+                        <button id="resetFiltersBtn" class="btn btn-secondary">
+                            <i class="bi bi-arrow-clockwise me-2"></i>Reset
                         </button>
                     </div>
                 </div>
-            {% endif %}
+            </div>
+
+            <!-- Ingress Resources Container -->
+            <div id="ingressContainer" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                <!-- Ingress cards will be dynamically populated here -->
+            </div>
         </div>
     </div>
 
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const socket = io({
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000,
+                timeout: 20000
+            });
+
+            const ingressContainer = document.getElementById('ingressContainer');
+            const namespaceFilter = document.getElementById('namespaceFilter');
+            const ingressClassFilter = document.getElementById('ingressClassFilter');
+            const statusFilter = document.getElementById('statusFilter');
+            const applyFiltersBtn = document.getElementById('applyFiltersBtn');
+            const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+            const connectionBadge = document.getElementById('connectionBadge');
+
+            // Connection handling
+            socket.on('connect', () => {
+                console.log('Connected to WebSocket');
+                connectionBadge.classList.remove('bg-warning');
+                connectionBadge.classList.add('bg-success');
+                connectionBadge.innerHTML = '<i class="bi bi-wifi me-2"></i>Connected';
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error('Connection Error:', error);
+                connectionBadge.classList.remove('bg-success');
+                connectionBadge.classList.add('bg-warning');
+                connectionBadge.innerHTML = '<i class="bi bi-wifi-off-off me-2"></i>Connection Error';
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Disconnected from WebSocket');
+                connectionBadge.classList.remove('bg-success');
+                connectionBadge.classList.add('bg-warning');
+                connectionBadge.innerHTML = '<i class="bi bi-wifi-off me-2"></i>Disconnected';
+            });
+
+            // Ingress update handler
+            socket.on('ingress_update', (ingresses) => {
+                updateIngressContainer(ingresses);
+                updateFilterOptions(ingresses);
+            });
+
+            function updateIngressContainer(ingresses) {
+                // Clear existing container
+                ingressContainer.innerHTML = '';
+
+                if (ingresses.length === 0) {
+                    ingressContainer.innerHTML = `
+                        <div class="col-12">
+                            <div class="alert alert-info text-center">
+                                <i class="bi bi-info-circle me-2"></i>
+                                No Ingress resources found matching the current filters.
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Create cards for each ingress
+                ingresses.forEach(ingress => {
+                    const cardColumn = document.createElement('div');
+                    cardColumn.className = 'col';
+                    cardColumn.innerHTML = `
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h5 class="card-title d-flex justify-content-between align-items-center">
+                                    ${ingress.name}
+                                    <span class="badge ${ingress.status === 'Active' ? 'bg-success' : 'bg-warning'} status-badge">
+                                        ${ingress.status}
+                                    </span>
+                                </h5>
+                                <hr>
+                                <div class="card-text">
+                                    <p>
+                                        <strong>Namespace:</strong> ${ingress.namespace}<br>
+                                        <strong>Hostname:</strong>
+                                        <a href="http://${ingress.hostname}"
+                                           target="_blank"
+                                           class="text-decoration-none">
+                                            ${ingress.hostname}
+                                        </a><br>
+                                        <strong>Ingress Class:</strong> ${ingress.ingress_class}<br>
+                                        <strong>Created:</strong> ${new Date(ingress.creation_timestamp).toLocaleString()}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    ingressContainer.appendChild(cardColumn);
+                });
+            }
+
+            function updateFilterOptions(ingresses) {
+                // Populate namespace filter
+                const namespaces = new Set();
+                const ingressClasses = new Set();
+
+                ingresses.forEach(ingress => {
+                    namespaces.add(ingress.namespace);
+                    ingressClasses.add(ingress.ingress_class);
+                });
+
+                // Update Namespace Filter
+                namespaceFilter.innerHTML = `
+                    <option value="">All Namespaces</option>
+                    ${Array.from(namespaces).map(ns => `
+                        <option value="${ns}">${ns}</option>
+                    `).join('')}
+                `;
+
+                // Update Ingress Class Filter
+                ingressClassFilter.innerHTML = `
+                    <option value="">All Classes</option>
+                    ${Array.from(ingressClasses).map(cls => `
+                        <option value="${cls}">${cls}</option>
+                    `).join('')}
+                `;
+            }
+
+            // Apply Filters Event Listener
+            applyFiltersBtn.addEventListener('click', () => {
+                const filters = {};
+
+                // Only add non-empty filter values
+                if (namespaceFilter.value) {
+                    filters.namespace = namespaceFilter.value;
+                }
+
+                if (ingressClassFilter.value) {
+                    filters.ingress_class = ingressClassFilter.value;
+                }
+
+                if (statusFilter.value) {
+                    filters.status = statusFilter.value;
+                }
+
+                // Emit filter request via WebSocket
+                socket.emit('get_ingresses', filters);
+            });
+
+            // Reset Filters Event Listener
+            resetFiltersBtn.addEventListener('click', () => {
+                // Reset all filter dropdowns to default
+                namespaceFilter.selectedIndex = 0;
+                ingressClassFilter.selectedIndex = 0;
+                statusFilter.selectedIndex = 0;
+
+                // Emit request to get all ingresses
+                socket.emit('get_ingresses', null);
+            });
+        });
+    </script>
     <footer class="footer mt-4 py-3 bg-light text-center">
         <div class="container">
             <span class="text-muted">
-                <i class="bi bi-github me-2"></i>Kubernetes Ingress Dashboard
-                <span class="small">v1.0.0</span>
+                <a href="https://github.com/michaeltrip/ingress-dashboard"
+                   target="_blank"
+                   class="text-decoration-none text-muted">
+                    <i class="bi bi-github me-2"></i>Kubernetes Ingress Dashboard
+                    <span class="small">v1.0.0</span>
+                </a>
             </span>
         </div>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Optional: Add client-side refresh functionality
-            const refreshBtns = document.querySelectorAll('[onclick="window.location.reload()"]');
-            refreshBtns.forEach(btn => {
-                btn.addEventListener('click', function() {
-                    // Show loading state
-                    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Refreshing...';
-                    btn.disabled = true;
-
-                    // Reload page
-                    window.location.reload();
-                });
-            });
-
-            // Animate cards on load
-            const cards = document.querySelectorAll('.card');
-            cards.forEach((card, index) => {
-                card.style.opacity = '0';
-                card.style.transform = 'translateY(20px)';
-
-                setTimeout(() => {
-                    card.style.transition = 'all 0.5s ease';
-                    card.style.opacity = '1';
-                    card.style.transform = 'translateY(0)';
-                }, index * 100);
-            });
-        });
-    </script>
 </body>
 </html>
