@@ -2,10 +2,10 @@ import logging
 import os
 import threading
 import time
+import traceback
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 from kubernetes import client, config
-import traceback
 
 logging.basicConfig(
     level=logging.INFO,
@@ -64,8 +64,9 @@ def load_kubernetes_config():
             return False
 
 def get_ingress_resources(filters=None, force_refresh=False):
-    # If no Kubernetes config is available, return mock or empty data
+    # Ensure Kubernetes configuration is loaded
     if not load_kubernetes_config():
+        logger.warning("Cannot load Kubernetes configuration")
         return generate_mock_ingresses()
 
     current_time = time.time()
@@ -153,7 +154,13 @@ def generate_mock_ingresses():
 
 def create_app():
     app = Flask(__name__)
-    socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=10, ping_interval=5)
+    socketio = SocketIO(
+        app,
+        cors_allowed_origins="*",
+        ping_timeout=30,
+        ping_interval=10,
+        async_mode='threading'
+    )
 
     def background_update():
         while True:
@@ -230,10 +237,11 @@ if __name__ == '__main__':
         logger.info("Starting in Kubernetes mode")
         app, socketio = create_app()
 
-    # Run the application with standard socketio run method
+    # Run the application
     socketio.run(
         app,
         host='0.0.0.0',
         port=5000,
         debug=True
     )
+

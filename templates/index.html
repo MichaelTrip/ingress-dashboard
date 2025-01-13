@@ -129,9 +129,12 @@
         document.addEventListener('DOMContentLoaded', function() {
             const socket = io({
                 reconnection: true,
-                reconnectionAttempts: 5,
+                reconnectionAttempts: 10,
                 reconnectionDelay: 1000,
-                timeout: 20000
+                reconnectionDelayMax: 5000,
+                timeout: 30000,
+                transports: ['websocket', 'polling'],
+                forceNew: true
             });
 
             const ingressContainer = document.getElementById('ingressContainer');
@@ -139,160 +142,152 @@
             const ingressClassFilter = document.getElementById('ingressClassFilter');
             const statusFilter = document.getElementById('statusFilter');
             const applyFiltersBtn = document.getElementById('applyFiltersBtn');
-            const resetFiltersBtn = document.getElementById('resetFiltersBtn');
-            const connectionBadge = document.getElementById('connectionBadge');
+            const resetFiltersBtn = document.getElementById('resetFiltersBtn');const connectionBadge = document.getElementById('connectionBadge');
 
-            // Connection handling
-            socket.on('connect', () => {
-                console.log('Connected to WebSocket');
-                connectionBadge.classList.remove('bg-warning');
-                connectionBadge.classList.add('bg-success');
-                connectionBadge.innerHTML = '<i class="bi bi-wifi me-2"></i>Connected';
-            });
+// Connection handling
+socket.on('connect', () => {
+    console.log('Connected to WebSocket');
+    connectionBadge.classList.remove('bg-warning');
+    connectionBadge.classList.add('bg-success');
+    connectionBadge.innerHTML = '<i class="bi bi-wifi me-2"></i>Connected';
+});
 
-            socket.on('connect_error', (error) => {
-                console.error('Connection Error:', error);
-                connectionBadge.classList.remove('bg-success');
-                connectionBadge.classList.add('bg-warning');
-                connectionBadge.innerHTML = '<i class="bi bi-wifi-off-off me-2"></i>Connection Error';
-            });
+socket.on('connect_error', (error) => {
+    console.error('Connection Error:', error);
+    connectionBadge.classList.remove('bg-success');
+    connectionBadge.classList.add('bg-warning');
+    connectionBadge.innerHTML = '<i class="bi bi-wifi-off me-2"></i>Connection Error';
+});
 
-            socket.on('disconnect', () => {
-                console.log('Disconnected from WebSocket');
-                connectionBadge.classList.remove('bg-success');
-                connectionBadge.classList.add('bg-warning');
-                connectionBadge.innerHTML = '<i class="bi bi-wifi-off me-2"></i>Disconnected';
-            });
+socket.on('disconnect', (reason) => {
+    console.log('Disconnected from WebSocket:', reason);
+    connectionBadge.classList.remove('bg-success');
+    connectionBadge.classList.add('bg-warning');
+    connectionBadge.innerHTML = '<i class="bi bi-wifi-off me-2"></i>Disconnected';
 
-            // Ingress update handler
-            socket.on('ingress_update', (ingresses) => {
-                updateIngressContainer(ingresses);
-                updateFilterOptions(ingresses);
-            });
+    // Attempt manual reconnection
+    if (reason !== 'io server disconnect') {
+        socket.connect();
+    }
+});
 
-            function updateIngressContainer(ingresses) {
-                // Clear existing container
-                ingressContainer.innerHTML = '';
+// Ingress update handler
+socket.on('ingress_update', (ingresses) => {
+    updateIngressContainer(ingresses);
+    updateFilterOptions(ingresses);
+});
 
-                if (ingresses.length === 0) {
-                    ingressContainer.innerHTML = `
-                        <div class="col-12">
-                            <div class="alert alert-info text-center">
-                                <i class="bi bi-info-circle me-2"></i>
-                                No Ingress resources found matching the current filters.
-                            </div>
-                        </div>
-                    `;
-                    return;
-                }
+function updateIngressContainer(ingresses) {
+    // Clear existing container
+    ingressContainer.innerHTML = '';
 
-                // Create cards for each ingress
-                ingresses.forEach(ingress => {
-                    const cardColumn = document.createElement('div');
-                    cardColumn.className = 'col';
-                    cardColumn.innerHTML = `
-                        <div class="card h-100">
-                            <div class="card-body">
-                                <h5 class="card-title d-flex justify-content-between align-items-center">
-                                    ${ingress.name}
-                                    <span class="badge ${ingress.status === 'Active' ? 'bg-success' : 'bg-warning'} status-badge">
-                                        ${ingress.status}
-                                    </span>
-                                </h5>
-                                <hr>
-                                <div class="card-text">
-                                    <p>
-                                        <strong>Namespace:</strong> ${ingress.namespace}<br>
-                                        <strong>Hostname:</strong>
-                                        <a href="http://${ingress.hostname}"
-                                           target="_blank"
-                                           class="text-decoration-none">
-                                            ${ingress.hostname}
-                                        </a><br>
-                                        <strong>Ingress Class:</strong> ${ingress.ingress_class}<br>
-                                        <strong>Created:</strong> ${new Date(ingress.creation_timestamp).toLocaleString()}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    ingressContainer.appendChild(cardColumn);
-                });
-            }
+    if (ingresses.length === 0) {
+        ingressContainer.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-info text-center">
+                    <i class="bi bi-info-circle me-2"></i>
+                    No Ingress resources found matching the current filters.
+                </div>
+            </div>
+        `;
+        return;
+    }
 
-            function updateFilterOptions(ingresses) {
-                // Populate namespace filter
-                const namespaces = new Set();
-                const ingressClasses = new Set();
+    // Create cards for each ingress
+    ingresses.forEach(ingress => {
+        const cardColumn = document.createElement('div');
+        cardColumn.className = 'col';
+        cardColumn.innerHTML = `
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title d-flex justify-content-between align-items-center">
+                        ${ingress.name}
+                        <span class="badge ${ingress.status === 'Active' ? 'bg-success' : 'bg-warning'} status-badge">
+                            ${ingress.status}
+                        </span>
+                    </h5>
+                    <hr>
+                    <div class="card-text">
+                        <p>
+                            <strong>Namespace:</strong> ${ingress.namespace}<br>
+                            <strong>Hostname:</strong>
+                            <a href="http://${ingress.hostname}"
+                               target="_blank"
+                               class="text-decoration-none">
+                                ${ingress.hostname}
+                            </a><br>
+                            <strong>Ingress Class:</strong> ${ingress.ingress_class}<br>
+                            <strong>Created:</strong> ${new Date(ingress.creation_timestamp).toLocaleString()}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        `;
+        ingressContainer.appendChild(cardColumn);
+    });
+}
 
-                ingresses.forEach(ingress => {
-                    namespaces.add(ingress.namespace);
-                    ingressClasses.add(ingress.ingress_class);
-                });
+function updateFilterOptions(ingresses) {
+    // Populate namespace filter
+    const namespaces = new Set();
+    const ingressClasses = new Set();
 
-                // Update Namespace Filter
-                namespaceFilter.innerHTML = `
-                    <option value="">All Namespaces</option>
-                    ${Array.from(namespaces).map(ns => `
-                        <option value="${ns}">${ns}</option>
-                    `).join('')}
-                `;
+    ingresses.forEach(ingress => {
+        namespaces.add(ingress.namespace);
+        ingressClasses.add(ingress.ingress_class);
+    });
 
-                // Update Ingress Class Filter
-                ingressClassFilter.innerHTML = `
-                    <option value="">All Classes</option>
-                    ${Array.from(ingressClasses).map(cls => `
-                        <option value="${cls}">${cls}</option>
-                    `).join('')}
-                `;
-            }
+    // Update Namespace Filter
+    namespaceFilter.innerHTML = `
+        <option value="">All Namespaces</option>
+        ${Array.from(namespaces).map(ns => `
+            <option value="${ns}">${ns}</option>
+        `).join('')}
+    `;
 
-            // Apply Filters Event Listener
-            applyFiltersBtn.addEventListener('click', () => {
-                const filters = {};
+    // Update Ingress Class Filter
+    ingressClassFilter.innerHTML = `
+        <option value="">All Classes</option>
+        ${Array.from(ingressClasses).map(cls => `
+            <option value="${cls}">${cls}</option>
+        `).join('')}
+    `;
+}
 
-                // Only add non-empty filter values
-                if (namespaceFilter.value) {
-                    filters.namespace = namespaceFilter.value;
-                }
+// Apply Filters Event Listener
+applyFiltersBtn.addEventListener('click', () => {
+    const filters = {};
 
-                if (ingressClassFilter.value) {
-                    filters.ingress_class = ingressClassFilter.value;
-                }
+    // Only add non-empty filter values
+    if (namespaceFilter.value) {
+        filters.namespace = namespaceFilter.value;
+    }
 
-                if (statusFilter.value) {
-                    filters.status = statusFilter.value;
-                }
+    if (ingressClassFilter.value) {
+        filters.ingress_class = ingressClassFilter.value;
+    }
 
-                // Emit filter request via WebSocket
-                socket.emit('get_ingresses', filters);
-            });
+    if (statusFilter.value) {
+        filters.status = statusFilter.value;
+    }
 
-            // Reset Filters Event Listener
-            resetFiltersBtn.addEventListener('click', () => {
-                // Reset all filter dropdowns to default
-                namespaceFilter.selectedIndex = 0;
-                ingressClassFilter.selectedIndex = 0;
-                statusFilter.selectedIndex = 0;
+    // Emit filter request via WebSocket
+    socket.emit('get_ingresses', filters);
+});
 
-                // Emit request to get all ingresses
-                socket.emit('get_ingresses', null);
-            });
-        });
-    </script>
-    <footer class="footer mt-4 py-3 bg-light text-center">
-        <div class="container">
-            <span class="text-muted">
-                <a href="https://github.com/michaeltrip/ingress-dashboard"
-                   target="_blank"
-                   class="text-decoration-none text-muted">
-                    <i class="bi bi-github me-2"></i>Kubernetes Ingress Dashboard
-                    <span class="small">v1.0.0</span>
-                </a>
-            </span>
-        </div>
-    </footer>
+// Reset Filters Event Listener
+resetFiltersBtn.addEventListener('click', () => {
+    // Reset all filter dropdowns to default
+    namespaceFilter.selectedIndex = 0;
+    ingressClassFilter.selectedIndex = 0;
+    statusFilter.selectedIndex = 0;
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    // Emit request to get all ingresses
+    socket.emit('get_ingresses', null);
+});
+});
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
