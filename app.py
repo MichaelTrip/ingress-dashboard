@@ -152,7 +152,7 @@ def generate_mock_ingresses():
         }
     ]
 
-def create_app():
+def create_app(test_config=None):
     app = Flask(__name__)
     socketio = SocketIO(
         app,
@@ -161,6 +161,23 @@ def create_app():
         ping_interval=10,
         async_mode='threading'
     )
+
+    # If test configuration is provided, override get_ingress_resources
+    global INGRESS_CACHE
+    if test_config and 'mock_resources' in test_config:
+        def get_ingress_resources(filters=None, force_refresh=False):
+            mock_resources = test_config['mock_resources']
+
+            if filters:
+                mock_resources = [
+                    resource for resource in mock_resources
+                    if all(
+                        str(resource.get(key, '')).lower() == str(value).lower()
+                        for key, value in filters.items()
+                    )
+                ]
+
+            return mock_resources
 
     def background_update():
         while True:
@@ -177,8 +194,8 @@ def create_app():
         try:
             # Quick health check
             status = {
-                'kubernetes_available': load_kubernetes_config(),
-                'ingress_resources_count': len(INGRESS_CACHE['resources'])
+                'kubernetes_available': load_kubernetes_config() if not test_config else True,
+                'ingress_resources_count': len(get_ingress_resources())
             }
             return jsonify(status), 200
         except Exception as e:
@@ -211,8 +228,9 @@ def create_app():
             traceback.print_exc()
             socketio.emit('ingress_update', generate_mock_ingresses())
 
-    # Start background thread
-    socketio.start_background_task(background_update)
+    # Start background thread only if not in test mode
+    if not test_config:
+        socketio.start_background_task(background_update)
 
     return app, socketio
 
