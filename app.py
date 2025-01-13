@@ -10,13 +10,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def get_ingress_resources():
+def get_ingress_resources(mock_resources=None):
+    # If mock resources are provided (useful for testing), return them
+    if mock_resources is not None:
+        return mock_resources
+
     try:
         # Try in-cluster configuration first
         config.load_incluster_config()
     except config.ConfigException:
-        # Fallback to local kubeconfig
-        config.load_kube_config()
+        try:
+            # Fallback to local kubeconfig
+            config.load_kube_config()
+        except Exception as e:
+            logger.warning(f"Could not load Kubernetes config: {e}")
+            return []
 
     # Create Kubernetes API client
     networking_v1 = client.NetworkingV1Api()
@@ -58,13 +66,15 @@ def get_ingress_resources():
         return []
 
 
-def create_app():
+def create_app(test_config=None):
     app = Flask(__name__)
 
     @app.route('/')
     def index():
         try:
-            ingresses = get_ingress_resources()
+            # If test_config is provided, use mock resources
+            mock_resources = test_config.get('mock_resources') if test_config else None
+            ingresses = get_ingress_resources(mock_resources)
             return render_template('index.html', ingresses=ingresses)
         except Exception as e:
             logger.error(f"Error rendering index: {e}")
