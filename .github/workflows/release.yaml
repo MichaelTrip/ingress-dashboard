@@ -9,7 +9,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ lower(github.repository_owner) }}/ingress-dashboard
+  IMAGE_NAME: ${{ github.repository_owner }}/ingress-dashboard
 
 jobs:
   release-version:
