@@ -17,7 +17,7 @@ spec:
       serviceAccountName: ingress-dashboard-sa
       containers:
       - name: ingress-dashboard
-        image: ghcr.io/michaeltrip/ingress-dashboard:sha-3d9c7aa
+        image: ghcr.io/michaeltrip/ingress-dashboard:v0.1.0-20250113195517
         imagePullPolicy: Always
         ports:
         - containerPort: 5000
