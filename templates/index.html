@@ -80,28 +80,57 @@
                     <div class="col">
                         <div class="card h-100">
                             <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-center mb-3">
-                                    <h5 class="card-title mb-0">
+                                <h5 class="card-title">
+                                    {% if ingress.status == 'No Resources' or ingress.status == 'Error Retrieving Resources' %}
+                                        <i class="bi bi-exclamation-triangle text-warning me-2"></i>{{ ingress.status }}
+                                    {% else %}
                                         <i class="bi bi-globe me-2"></i>{{ ingress.name }}
-                                    </h5>
-                                    <span class="badge
-                                        {% if ingress.status == 'Active' %}bg-success{% else %}bg-warning{% endif %}
-                                        status-badge">
-                                        {{ ingress.status }}
-                                    </span>
-                                </div>
-                                <hr class="my-3">
+                                    {% endif %}
+                                </h5>
                                 <p class="card-text">
-                                    <strong><i class="bi bi-folder me-2"></i>Namespace:</strong>
-                                    {{ ingress.namespace }}<br>
-                                    <strong><i class="bi bi-link me-2"></i>Hostname:</strong>
-                                    <a href="http://{{ ingress.hostname }}"
-                                       target="_blank"
-                                       class="hostname-link">
-                                        {{ ingress.hostname }}
-                                    </a><br>
-                                    <strong><i class="bi bi-layers me-2"></i>Ingress Class:</strong>
-                                    {{ ingress.ingress_class }}
+                                    {% if ingress.status == 'No Resources' %}
+                                        <div class="alert alert-info">
+                                            <strong>No Ingress Resources Found</strong>
+                                            <p>There are currently no ingress resources in your Kubernetes cluster.</p>
+                                            <hr>
+                                            <h6>Troubleshooting Tips:</h6>
+                                            <ul>
+                                                <li>Check your cluster configuration</li>
+                                                <li>Create ingress resources</li>
+                                                <li>Verify cluster connectivity</li>
+                                            </ul>
+                                            <button onclick="window.location.reload()" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+                                            </button>
+                                        </div>
+                                    {% elif ingress.status == 'Error Retrieving Resources' %}
+                                        <div class="alert alert-danger">
+                                            <strong>Error Retrieving Ingress Resources</strong>
+                                            <p>Unable to fetch ingress information from the cluster.</p>
+                                            <hr>
+                                            <h6>Possible Causes:</h6>
+                                            <ul>
+                                                <li>Network connectivity issues</li>
+                                                <li>Kubernetes API access problems</li>
+                                                <li>Insufficient permissions</li>
+                                            </ul>
+                                            <button onclick="window.location.reload()" class="btn btn-sm btn-outline-danger">
+                                                <i class="bi bi-arrow-clockwise me-2"></i>Retry
+                                            </button>
+                                        </div>
+                                    {% else %}
+                                        <strong>Namespace:</strong> {{ ingress.namespace }}<br>
+                                        <strong>Hostname:</strong>
+                                        <a href="http://{{ ingress.hostname }}"
+                                           target="_blank"
+                                           class="hostname-link">
+                                            {{ ingress.hostname }}
+                                        </a><br>
+                                        <strong>Ingress Class:</strong> {{ ingress.ingress_class }}<br><strong>Status:</strong>
+                                        <span class="badge {% if ingress.status == 'Active' %}bg-success{% else %}bg-warning{% endif %}">
+                                            {{ ingress.status }}
+                                        </span>
+                                    {% endif %}
                                 </p>
                             </div>
                         </div>
@@ -139,14 +168,19 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Optional: Add client-side refresh functionality
-            const refreshBtn = document.querySelector('.btn-outline-secondary');
-            if (refreshBtn) {
-                refreshBtn.addEventListener('click', function() {
+            const refreshBtns = document.querySelectorAll('[onclick="window.location.reload()"]');
+            refreshBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    // Show loading state
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Refreshing...';
+                    btn.disabled = true;
+
+                    // Reload page
                     window.location.reload();
                 });
-            }
+            });
 
-            // Optional: Animate cards on load
+            // Animate cards on load
             const cards = document.querySelectorAll('.card');
             cards.forEach((card, index) => {
                 card.style.opacity = '0';
