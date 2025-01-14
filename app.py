@@ -147,12 +147,42 @@ def get_ingress_resources(filters=None, force_refresh=False):
         traceback.print_exc()
         return generate_mock_ingresses()
 
-def create_app():
-    """
-    Create and configure the Flask application
-    """
-    app = Flask(__name__)
-    socketio = SocketIO(app, cors_allowed_origins="*")
+def create_app(test_config=None):
+    app = Flask(__name__, static_folder='static')
+    socketio = SocketIO(
+        app, 
+        cors_allowed_origins="*", 
+        ping_timeout=30,
+        ping_interval=10,
+        async_mode='threading'
+    )
+
+    # Store the original get_ingress_resources function
+    original_get_ingress_resources = get_ingress_resources
+
+    # If test configuration is provided, create a test-specific version of the function
+    if test_config and 'mock_resources' in test_config:
+        def test_get_ingress_resources(filters=None, force_refresh=False):
+            mock_resources = test_config['mock_resources']
+            
+            if filters:
+                mock_resources = [
+                    resource for resource in mock_resources
+                    if all(
+                        str(resource.get(key, '')).lower() == str(value).lower()
+                        for key, value in filters.items()
+                    )
+                ]
+            
+            return mock_resources
+
+        # Replace get_ingress_resources with test version during testing
+        globals()['get_ingress_resources'] = test_get_ingress_resources
+
+    @app.teardown_appcontext
+    def cleanup(exception=None):
+        # Restore original get_ingress_resources function
+        globals()['get_ingress_resources'] = original_get_ingress_resources
 
     @app.route('/')
     def index():
@@ -160,10 +190,16 @@ def create_app():
 
     @app.route('/health')
     def health_check():
-        return jsonify({
-            'status': 'healthy',
-            'kubernetes_available': load_kubernetes_config()
-        }), 200
+        try:
+            return jsonify({
+                'status': 'healthy',
+                'kubernetes_available': load_kubernetes_config()
+            }), 200
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
 
     @socketio.on('connect')
     def handle_connect():
@@ -172,7 +208,9 @@ def create_app():
             # Send initial data on connect
             ingresses = get_ingress_resources()
             emit('ingress_update', ingresses)
-        except Exception as e:logger.error(f"Error on client connect: {e}")
+        except Exception as e:
+            logger.error(f"Error on client connect: {e}")
+            emit('ingress_update', generate_mock_ingresses())
 
     @socketio.on('get_ingresses')
     def handle_get_ingresses(filters=None):
@@ -198,17 +236,19 @@ def create_app():
             # Emit mock data or empty list in case of error
             emit('ingress_update', generate_mock_ingresses())
 
-    def background_update():
-        while True:
-            try:
-                ingresses = get_ingress_resources(force_refresh=True)
-                socketio.emit('ingress_update', ingresses)
-            except Exception as e:
-                logger.error(f"Background update failed: {e}")
-            time.sleep(30)  # Update every 30 seconds
+    # Skip background thread in test mode
+    if not test_config:
+        def background_update():
+            while True:
+                try:
+                    ingresses = get_ingress_resources(force_refresh=True)
+                    socketio.emit('ingress_update', ingresses)
+                except Exception as e:
+                    logger.error(f"Background update failed: {e}")
+                time.sleep(30)  # Update every 30 seconds
 
-    # Start background thread
-    threading.Thread(target=background_update, daemon=True).start()
+        # Start background thread
+        threading.Thread(target=background_update, daemon=True).start()
 
     return app, socketio
 

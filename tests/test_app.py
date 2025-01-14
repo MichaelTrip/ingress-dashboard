@@ -15,10 +15,10 @@ def client():
             }
         ]
     }
-
+    
     app, _ = create_app(test_config)
     app.config['TESTING'] = True
-
+    
     with app.test_client() as client:
         yield client
 
