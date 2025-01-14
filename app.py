@@ -34,34 +34,34 @@ def load_kubernetes_config():
         try:
             # Check for custom kubeconfig path
             custom_kubeconfig = os.getenv('KUBECONFIG')
-
+            
             if custom_kubeconfig and os.path.exists(custom_kubeconfig):
                 logger.info(f"Using custom kubeconfig: {custom_kubeconfig}")
                 config.load_kube_config(custom_kubeconfig)
                 return True
-
+            
             # Try default kubeconfig locations
             default_locations = [
                 os.path.expanduser('~/.kube/config'),
                 os.path.expanduser('~/kube/config')
             ]
-
+            
             for kubeconfig_path in default_locations:
                 if os.path.exists(kubeconfig_path):
                     logger.info(f"Using kubeconfig: {kubeconfig_path}")
                     config.load_kube_config(kubeconfig_path)
                     return True
-
+            
             logger.warning("No valid kubeconfig found")
             return False
-
+        
         except Exception as e:
             logger.error(f"Error loading kubeconfig: {e}")
             return False
 
 def generate_mock_ingresses():
     """
-    Generate mock Ingress resources for testing or when no resources are found
+    Generate mock Ingress resources for testing
     """
     return [
         {
@@ -84,13 +84,17 @@ def generate_mock_ingresses():
 
 def get_ingress_resources(filters=None, force_refresh=False):
     """
-    Retrieve Ingress resources with optional filtering
+    Retrieve and filter Ingress resources
     """
     try:
         # Ensure Kubernetes configuration is loaded
         if not load_kubernetes_config():
             logger.warning("Cannot load Kubernetes configuration")
             return generate_mock_ingresses()
+
+        # Ensure filters is a dictionary
+        filters = filters or {}
+        logger.info(f"Received filters: {filters}")
 
         # Create Kubernetes API client
         networking_v1 = client.NetworkingV1Api()
@@ -103,14 +107,14 @@ def get_ingress_resources(filters=None, force_refresh=False):
         for ing in ingresses.items:
             # Extract relevant information
             hostname = (
-                ing.spec.rules[0].host
-                if ing.spec.rules and ing.spec.rules[0].host
+                ing.spec.rules[0].host 
+                if ing.spec.rules and ing.spec.rules[0].host 
                 else 'N/A'
             )
 
             ingress_class = (
-                ing.spec.ingress_class_name or
-                (getattr(ing.spec, 'backend', None).resource.kind
+                ing.spec.ingress_class_name or 
+                (getattr(ing.spec, 'backend', None).resource.kind 
                  if getattr(ing.spec, 'backend', None) else 'Default')
             )
 
@@ -128,16 +132,15 @@ def get_ingress_resources(filters=None, force_refresh=False):
             ingress_list.append(ingress_details)
 
         # Apply filtering
-        if filters:
-            ingress_list = [
-                resource for resource in ingress_list
-                if all(
-                    str(resource.get(key, '')).lower() == str(value).lower()
-                    for key, value in filters.items()
-                )
+        filtered_resources = ingress_list
+        for key, value in filters.items():
+            filtered_resources = [
+                resource for resource in filtered_resources
+                if str(resource.get(key, '')).lower() == str(value).lower()
             ]
 
-        return ingress_list if ingress_list else generate_mock_ingresses()
+        logger.info(f"Filtered ingresses count: {len(filtered_resources)}")
+        return filtered_resources or generate_mock_ingresses()
 
     except Exception as e:
         logger.error(f"Error retrieving Ingress resources: {e}")
@@ -169,14 +172,30 @@ def create_app():
             # Send initial data on connect
             ingresses = get_ingress_resources()
             emit('ingress_update', ingresses)
-        except Exception as e:
-            logger.error(f"Error on client connect: {e}")@socketio.on('get_ingresses')
+        except Exception as e:logger.error(f"Error on client connect: {e}")
+
+    @socketio.on('get_ingresses')
     def handle_get_ingresses(filters=None):
         try:
+            # Ensure filters is a dictionary
+            if filters is None:
+                filters = {}
+            
+            # Log received filters
+            logger.info(f"Received filters: {filters}")
+
+            # Retrieve and filter ingresses
             ingresses = get_ingress_resources(filters)
+            
+            # Log number of filtered ingresses
+            logger.info(f"Filtered ingresses count: {len(ingresses)}")
+
+            # Emit the filtered ingresses
             emit('ingress_update', ingresses)
         except Exception as e:
             logger.error(f"Error getting ingresses: {e}")
+            traceback.print_exc()
+            # Emit mock data or empty list in case of error
             emit('ingress_update', generate_mock_ingresses())
 
     def background_update():
@@ -196,12 +215,13 @@ def create_app():
 # Application entry point
 if __name__ == '__main__':
     # Create the app
+    app = Flask(__name__, static_folder='static')  # Add this line
     app, socketio = create_app()
 
     # Run the application
     socketio.run(
-        app,
-        host='0.0.0.0',
+        app, 
+        host='0.0.0.0', 
         port=5000,
         debug=True
     )
