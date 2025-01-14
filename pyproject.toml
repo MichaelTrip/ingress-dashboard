@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "ingress-dashboard"
-version = "0.1.0"
+version = "1.0.0"
 description = "Kubernetes Ingress Dashboard"
-authors = ["Your Name <michael@alcatrash.org>"]
+authors = ["Michael Trip <michael@alcatrash.org>"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
