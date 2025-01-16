@@ -41,7 +41,7 @@ jobs:
           VERSION="${{ github.ref_name }}"
         else
           # Generate timestamp-based version
-          VERSION="v0.1.0-$(date +'%Y%m%d%H%M%S')"
+          VERSION="develop-$(date +'%Y%m%d%H%M%S')"
         fi
         echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
