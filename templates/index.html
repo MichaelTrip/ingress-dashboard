@@ -1,14 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kubernetes Ingress Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
-    <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
-    <style>
-        :root {
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Kubernetes Ingress Dashboard</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+        <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+
+        <!-- Prism.js libraries -->
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" rel="stylesheet" />
+
+        <style>
+            :root {
             --k8s-blue: #326CE5;
             --k8s-light-blue: #4D7DEA;
             --background-color: #f4f6f9;
@@ -76,6 +84,33 @@
             padding: 1rem 0;
             border-top: 1px solid #e9ecef;
         }
+        .modal-full-width {
+            max-width: 95%;
+            width: 95%;
+        }
+
+        /* Prism.js custom styling */
+        pre[class*="language-"] {
+            max-height: 500px;
+            overflow-y: auto;
+            margin-top: 0;
+            margin-bottom: 0;
+            padding: 1rem;
+            border-radius: 4px;
+        }
+
+        .token.key {
+            color: #07a;
+        }
+
+        .token.string {
+            color: #690;
+        }
+
+        .token.comment {
+            color: #998;
+        }
+
     </style>
 </head>
 <body>
@@ -85,15 +120,15 @@
             <div class="banner-content">
                 <div class="d-flex align-items-center">
                     <!-- Local Kubernetes Logo -->
-                    <img src="/static/kubernetes-logo.svg" 
-                         alt="Kubernetes Logo" 
+                    <img src="/static/kubernetes-logo.svg"
+                         alt="Kubernetes Logo"
                          class="k8s-logo">
                     <h1 class="mb-0 text-white">Kubernetes Ingress Dashboard</h1>
                 </div>
                 <div>
-                    <a href="https://github.com/michaeltrip/ingress-dashboard" 
-                       target="_blank" 
-                       class="btn btn-outline-light" 
+                    <a href="https://github.com/michaeltrip/ingress-dashboard"
+                       target="_blank"
+                       class="btn btn-outline-light"
                        title="View on GitHub">
                         <i class="bi bi-github me-2"></i>GitHub
                     </a>
@@ -101,7 +136,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Connection Status -->
     <div id="connectionStatus" class="connection-status">
         <span id="connectionBadge" class="badge bg-warning">
@@ -155,183 +190,518 @@
     <footer class="footer mt-4">
         <div class="container text-center">
             <span class="text-muted">
-                <a href="https://github.com/michaeltrip/ingress-dashboard" 
-                   target="_blank" 
+                <a href="https://github.com/michaeltrip/ingress-dashboard"
+                   target="_blank"
                    class="text-muted text-decoration-none">
                    <i class="bi bi-github me-2"></i>
-                   Kubernetes Ingress Dashboard 
+                   Kubernetes Ingress Dashboard
                    <span class="small">v1.0.0</span>
                </a>
            </span>
-       </div>
-   </footer>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    const socket = io({
+        reconnection: true,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 30000,
+        transports: ['websocket', 'polling'],
+        forceNew: true
+    });
 
-   <script>
-       document.addEventListener('DOMContentLoaded', function() {
-           const socket = io({
-               reconnection: true,
-               reconnectionAttempts: 10,
-               reconnectionDelay: 1000,
-               reconnectionDelayMax: 5000,
-               timeout: 30000,
-               transports: ['websocket', 'polling'],
-               forceNew: true
-           });
+    const ingressContainer = document.getElementById('ingressContainer');
+    const namespaceFilter = document.getElementById('namespaceFilter');
+    const ingressClassFilter = document.getElementById('ingressClassFilter');
+    const statusFilter = document.getElementById('statusFilter');
+    const applyFiltersBtn = document.getElementById('applyFiltersBtn');
+    const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+    const connectionBadge = document.getElementById('connectionBadge');
 
-           const ingressContainer = document.getElementById('ingressContainer');
-           const namespaceFilter = document.getElementById('namespaceFilter');
-           const ingressClassFilter = document.getElementById('ingressClassFilter');
-           const statusFilter = document.getElementById('statusFilter');
-           const applyFiltersBtn = document.getElementById('applyFiltersBtn');
-           const resetFiltersBtn = document.getElementById('resetFiltersBtn');
-           const connectionBadge = document.getElementById('connectionBadge');
+    // Modify the filter buttons section to include search and export
+    const filterButtonsSection = document.querySelector('.filter-buttons');
 
-           // Connection handling
-           socket.on('connect', () => {
-               console.log('Connected to WebSocket');
-               connectionBadge.classList.remove('bg-warning');
-               connectionBadge.classList.add('bg-success');
-               connectionBadge.innerHTML = '<i class="bi bi-wifi me-2"></i>Connected';
-           });
+    // Create search input group
+    const searchGroup = document.createElement('div');
+    searchGroup.className = 'input-group me-2';
+    searchGroup.innerHTML = `
+        <input type="text" id="searchInput" class="form-control" placeholder="Search...">
+        <button id="searchBtn" class="btn btn-outline-secondary" type="button">
+            <i class="bi bi-search"></i>
+        </button>
+    `;
 
-           socket.on('connect_error', (error) => {
-               console.error('Connection Error:', error);
-               connectionBadge.classList.remove('bg-success');
-               connectionBadge.classList.add('bg-danger');
-               connectionBadge.innerHTML = '<i class="bi bi-exclamation-triangle me-2"></i>Connection Error';
-           });
+    // Create export button
+    const exportBtn = document.createElement('button');
+    exportBtn.id = 'exportBtn';
+    exportBtn.className = 'btn btn-primary';
+    exportBtn.innerHTML = '<i class="bi bi-download me-2"></i>Export';
 
-           socket.on('disconnect', (reason) => {
-               console.log('Disconnected from WebSocket:', reason);
-               connectionBadge.classList.remove('bg-success');
-               connectionBadge.classList.add('bg-warning');
-               connectionBadge.innerHTML = '<i class="bi bi-wifi-off me-2"></i>Disconnected';
+    // Add to filter buttons section
+    filterButtonsSection.prepend(searchGroup);
+    filterButtonsSection.prepend(exportBtn);
 
-               // Attempt manual reconnection
-               if (reason !== 'io server disconnect') {
-                   socket.connect();
-               }
-           });
+    const searchInput = document.getElementById('searchInput');
+    const searchBtn = document.getElementById('searchBtn');
 
-           // Ingress update handler
-           socket.on('ingress_update', (ingresses) => {
-               console.log('Received ingresses:', ingresses);
-               updateIngressContainer(ingresses);
-               updateFilterOptions(ingresses);
-           });
+    // Search functionality
+    function performSearch() {
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        const cards = document.querySelectorAll('.card');
 
-           // Apply Filters Event Listener
-           applyFiltersBtn.addEventListener('click', () => {
-               const filters = {};
-
-               // Only add non-empty filter values
-               if (namespaceFilter.value) {
-                   filters.namespace = namespaceFilter.value;
-               }
-
-               if (ingressClassFilter.value) {
-                   filters.ingress_class = ingressClassFilter.value;
-               }
-
-               if (statusFilter.value) {
-                   filters.status = statusFilter.value;
-               }
-
-               console.log('Applying filters:', filters);
-
-               // Emit filter request via WebSocket
-               socket.emit('get_ingresses', filters);
-           });
-
-           // Reset Filters Event Listener
-           resetFiltersBtn.addEventListener('click', () => {
-               // Reset all filter dropdowns to default
-               namespaceFilter.selectedIndex = 0;
-               ingressClassFilter.selectedIndex = 0;
-               statusFilter.selectedIndex = 0;
-
-               console.log('Resetting filters');
-
-               // Emit request to get all ingresses
-               socket.emit('get_ingresses', null);
-           });
-
-           function updateIngressContainer(ingresses) {
-               // Clear existing container
-               ingressContainer.innerHTML = '';
-
-               if (ingresses.length === 0) {
-                   ingressContainer.innerHTML = `
-                       <div class="col-12">
-                           <div class="alert alert-info text-center">
-                               <i class="bi bi-info-circle me-2"></i>
-                               No Ingress resources found matching the current filters.
-                           </div>
-                       </div>
-                   `;
-                   return;
-               }
-
-               // Create cards for each ingress
-               ingresses.forEach(ingress => {
-                   const cardColumn = document.createElement('div');
-                   cardColumn.className = 'col';
-                   cardColumn.innerHTML = `
-                       <div class="card h-100">
-                           <div class="card-body">
-                               <h5 class="card-title d-flex justify-content-between align-items-center">
-                                   ${ingress.name}
-                                   <span class="badge ${ingress.status === 'Active' ? 'bg-success' : 'bg-warning'} status-badge">
-                                       ${ingress.status}
-                                   </span>
-                               </h5>
-                               <hr>
-                               <div class="card-text">
-                                   <p>
-                                       <strong>Namespace:</strong> ${ingress.namespace}<br>
-                                       <strong>Hostname:</strong> 
-                                       <a href="http://${ingress.hostname}" 
-                                          target="_blank" 
-                                          class="text-decoration-none">
-                                           ${ingress.hostname}
-                                       </a><br>
-                                       <strong>Ingress Class:</strong> ${ingress.ingress_class}<br>
-                                       <strong>Created:</strong> ${new Date(ingress.creation_timestamp).toLocaleString()}
-                                   </p>
-                               </div>
-                           </div>
-                       </div>
-                   `;
-                   ingressContainer.appendChild(cardColumn);
-               });
-           }
-
-           function updateFilterOptions(ingresses) {
-               // Populate namespace filter
-               const namespaces = new Set();
-               const ingressClasses = new Set();ingresses.forEach(ingress => {
-                    namespaces.add(ingress.namespace);
-                    ingressClasses.add(ingress.ingress_class);
-                });
-
-                // Update Namespace Filter
-                namespaceFilter.innerHTML = `
-                    <option value="">All Namespaces</option>
-                    ${Array.from(namespaces).map(ns => `
-                        <option value="${ns}">${ns}</option>
-                    `).join('')}
-                `;
-
-                // Update Ingress Class Filter
-                ingressClassFilter.innerHTML = `
-                    <option value="">All Classes</option>
-                    ${Array.from(ingressClasses).map(cls => `
-                        <option value="${cls}">${cls}</option>
-                    `).join('')}
-                `;
+        cards.forEach(card => {
+            const cardText = card.textContent.toLowerCase();
+            if (cardText.includes(searchTerm)) {
+                card.closest('.col').style.display = '';
+            } else {
+                card.closest('.col').style.display = 'none';
             }
         });
-    </script>
+    }
+
+    // Detailed Ingress Modal Function
+    function createIngressDetailModal(ingress) {
+            // Create a loading modal first
+            const loadingModalHtml = `
+                <div class="modal fade" id="ingressDetailModal" tabindex="-1">
+                    <div class="modal-dialog modal-xl">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Loading Ingress Details...</h5>
+                            </div>
+                            <div class="modal-body text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const loadingModalContainer = document.createElement('div');
+            loadingModalContainer.innerHTML = loadingModalHtml;
+            document.body.appendChild(loadingModalContainer);
+
+            const loadingModalElement = new bootstrap.Modal(document.getElementById('ingressDetailModal'));
+            loadingModalElement.show();
+
+            // Fetch YAML content
+            fetch(`/ingress/yaml/${ingress.namespace}/${ingress.name}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Remove loading modal
+                    loadingModalElement.hide();
+                    document.body.removeChild(loadingModalContainer);
+
+                    const modalHtml = `
+                        <div class="modal fade" id="ingressDetailModal" tabindex="-1">
+                            <div class="modal-dialog modal-xl">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">
+                                            <i class="bi bi-info-circle me-2"></i>
+                                            Ingress Details: ${ingress.name}
+                                        </h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <ul class="nav nav-tabs" id="ingressDetailTabs">
+                                            <li class="nav-item">
+                                                <a class="nav-link active" data-bs-toggle="tab" href="#basicInfo">Basic Info</a>
+                                            </li>
+                                            <li class="nav-item">
+                                                <a class="nav-link" data-bs-toggle="tab" href="#yamlView">YAML</a>
+                                            </li>
+                                        </ul>
+                                        <div class="tab-content mt-3">
+                                            <div class="tab-pane fade show active" id="basicInfo">
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <h6>Basic Information</h6>
+                                                        <table class="table table-borderless">
+                                                            <tr>
+                                                                <th>Name:</th>
+                                                                <td>${ingress.name}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <th>Namespace:</th>
+                                                                <td>${ingress.namespace}</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <th>Hostname:</th>
+                                                                <td>
+                                                                    <a href="http://${ingress.hostname}" target="_blank">
+                                                                        ${ingress.hostname}
+                                                                    </a>
+                                                                </td>
+
+                                                </tr>
+                                                <tr>
+                                                    <th>Ingress Class:</th>
+                                                    <td>${ingress.ingress_class}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Status:</th>
+                                                    <td>
+                                                        <span class="badge ${ingress.status === 'Active' ? 'bg-success' : 'bg-warning'}">
+                                                            ${ingress.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Created:</th>
+                                                    <td>${new Date(ingress.creation_timestamp).toLocaleString()}</td>
+                                                </tr>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="tab-pane fade" id="yamlView">
+                                    <pre class="line-numbers"><code class="language-yaml">${data.yaml || 'Failed to load YAML'}</code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const modalContainer = document.createElement('div');
+            modalContainer.innerHTML = modalHtml;
+            document.body.appendChild(modalContainer);
+
+            const modalElement = new bootstrap.Modal(document.getElementById('ingressDetailModal'));
+            modalElement.show();
+
+            // Ensure Prism highlighting
+            if (window.Prism) {
+                Prism.highlightAll();
+            }
+
+            document.getElementById('ingressDetailModal').addEventListener('hidden.bs.modal', () => {
+                modalContainer.remove();
+            });
+        })
+        .catch(error => {
+            // Remove loading modal
+            loadingModalElement.hide();
+            document.body.removeChild(loadingModalContainer);
+
+            console.error('Error fetching Ingress YAML:', error);
+
+            const modalHtml = `
+                <div class="modal fade" id="ingressDetailModal" tabindex="-1">
+                    <div class="modal-dialog modal-xl">
+                        <div class="modal-content">
+                            <div class="modal-header bg-danger text-white">
+                                <h5 class="modal-title">
+                                    <i class="bi bi-exclamation-triangle me-2"></i>
+                                    Error Loading Ingress Details
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-danger">
+                                    <strong>Unable to fetch Ingress details</strong>
+                                    <p>${error.message}</p>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>Available Information</h6>
+                                        <table class="table table-borderless">
+                                            <tr>
+                                                <th>Name:</th>
+                                                <td>${ingress.name}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Namespace:</th>
+                                                <td>${ingress.namespace}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Hostname:</th>
+                                                <td>${ingress.hostname}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Ingress Class:</th>
+                                                <td>${ingress.ingress_class}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Status:</th>
+                                                <td>
+                                                    <span class="badge ${ingress.status === 'Active' ? 'bg-success' : 'bg-warning'}">
+                                                        ${ingress.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th>Created:</th>
+                                                <td>${new Date(ingress.creation_timestamp).toLocaleString()}</td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const modalContainer = document.createElement('div');
+            modalContainer.innerHTML = modalHtml;
+            document.body.appendChild(modalContainer);
+
+            const modalElement = new bootstrap.Modal(document.getElementById('ingressDetailModal'));
+            modalElement.show();
+
+            document.getElementById('ingressDetailModal').addEventListener('hidden.bs.modal', () => {
+                modalContainer.remove();
+            });
+        });
+}
+
+    // Search button click event
+    searchBtn.addEventListener('click', performSearch);
+
+    // Search input enter key event
+    searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            performSearch();
+        }
+    });
+
+    // Export functionality
+    exportBtn.addEventListener('click', () => {
+        // Get current visible ingress cards
+        const visibleCards = Array.from(document.querySelectorAll('.card:not([style*="display: none"])'));
+
+        // Extract ingress data
+        const ingresses = visibleCards.map(card =>
+            JSON.parse(card.dataset.ingressData)
+        );
+
+        // Create CSV content
+        const csvContent = [
+            ['Name', 'Namespace', 'Hostname', 'Ingress Class', 'Status', 'Created'],
+            ...ingresses.map(ing => [
+                ing.name,
+                ing.namespace,
+                ing.hostname,
+                ing.ingress_class,
+                ing.status,
+                new Date(ing.creation_timestamp).toLocaleString()
+            ])
+        ].map(e => e.join(",")).join("\n");
+
+        // Create and trigger download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `ingress_resources_${new Date().toISOString()}.csv`);
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+
+    // Connection handling
+    socket.on('connect', () => {
+        console.log('Connected to WebSocket');
+        connectionBadge.classList.remove('bg-warning');
+        connectionBadge.classList.add('bg-success');
+        connectionBadge.innerHTML = '<i class="bi bi-wifi me-2"></i>Connected';
+    });
+
+    socket.on('connect_error', (error) => {
+        console.error('Connection Error:', error);
+        connectionBadge.classList.remove('bg-success');
+        connectionBadge.classList.add('bg-danger');
+        connectionBadge.innerHTML = '<i class="bi bi-exclamation-triangle me-2"></i>Connection Error';
+    });
+
+    socket.on('disconnect', (reason) => {
+        console.log('Disconnected from WebSocket:', reason);
+        connectionBadge.classList.remove('bg-success');
+        connectionBadge.classList.add('bg-warning');
+        connectionBadge.innerHTML = '<i class="bi bi-wifi-off me-2"></i>Disconnected';
+
+        // Attempt manual reconnection
+        if (reason !== 'io server disconnect') {
+            socket.connect();
+        }
+    });
+
+    // Ingress update handler
+    socket.on('ingress_update', (ingresses) => {
+        console.log('Received ingresses:', ingresses);
+        updateIngressContainer(ingresses);
+        updateFilterOptions(ingresses);
+    });
+
+    // Apply Filters Event Listener
+    applyFiltersBtn.addEventListener('click', () => {
+        const filters = {};
+
+        // Only add non-empty filter values
+        if (namespaceFilter.value) {
+            filters.namespace = namespaceFilter.value;
+        }
+
+        if (ingressClassFilter.value) {
+            filters.ingress_class = ingressClassFilter.value;
+        }
+
+        if (statusFilter.value) {
+            filters.status = statusFilter.value;
+        }
+
+        console.log('Applying filters:', filters);
+
+        // Emit filter request via WebSocket
+        socket.emit('get_ingresses', filters);
+    });
+
+    // Reset Filters Event Listener
+    resetFiltersBtn.addEventListener('click', () => {
+        // Reset all filter dropdowns to default
+        namespaceFilter.selectedIndex = 0;
+        ingressClassFilter.selectedIndex = 0;
+        statusFilter.selectedIndex = 0;
+        searchInput.value = ''; // Clear search input
+
+        console.log('Resetting filters');
+
+        // Emit request to get all ingresses
+        socket.emit('get_ingresses', null);
+    });
+
+    function updateIngressContainer(ingresses) {
+    // Clear existing container
+    ingressContainer.innerHTML = '';
+
+    if (ingresses.length === 0) {
+        ingressContainer.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-info text-center">
+                    <i class="bi bi-info-circle me-2"></i>
+                    No Ingress resources found matching the current filters.
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    // Create cards for each ingress
+    ingresses.forEach(ingress => {
+        const cardColumn = document.createElement('div');
+        cardColumn.className = 'col';
+        const card = document.createElement('div');
+        card.className = 'card h-100';
+        card.dataset.ingressData = JSON.stringify(ingress);
+
+        card.innerHTML = `
+            <div class="card-body">
+                <h5 class="card-title d-flex justify-content-between align-items-center">
+                    ${ingress.name}
+                    <span class="badge ${ingress.status === 'Active' ? 'bg-success' : 'bg-warning'} status-badge">
+                        ${ingress.status}
+                    </span>
+                </h5>
+                <hr>
+                <div class="card-text">
+                    <p>
+                        <strong>Namespace:</strong> ${ingress.namespace}<br>
+                        <strong>Hostname:</strong>
+                        <a href="http://${ingress.hostname}"
+                           target="_blank"
+                           class="text-decoration-none">
+                            ${ingress.hostname}
+                        </a><br>
+                        <strong>Ingress Class:</strong> ${ingress.ingress_class}<br>
+                        <strong>Created:</strong> ${new Date(ingress.creation_timestamp).toLocaleString()}
+                    </p>
+                </div>
+            </div>
+        `;
+
+        // Add click event to show YAML
+        card.addEventListener('click', () => {
+            fetch(`/ingress/yaml/${ingress.namespace}/${ingress.name}`)
+                .then(response => response.json())
+                .then(data => {
+                    const modalHtml = `
+                        <div class="modal fade" id="yamlViewModal" tabindex="-1">
+                            <div class="modal-dialog modal-xl">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">
+                                            <i class="bi bi-file-earmark-code me-2"></i>
+                                            YAML for Ingress: ${ingress.name}
+                                        </h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <pre class="line-numbers"><code class="language-yaml">${data.yaml || 'Failed to load YAML'}</code></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    const modalContainer = document.createElement('div');
+                    modalContainer.innerHTML = modalHtml;
+                    document.body.appendChild(modalContainer);
+
+                    const modalElement = new bootstrap.Modal(document.getElementById('yamlViewModal'));
+                    modalElement.show();
+
+                    // Ensure syntax highlighting
+                    if (window.Prism) {
+                        Prism.highlightAll();
+                    }
+
+                    document.getElementById('yamlViewModal').addEventListener('hidden.bs.modal', () => {
+                        modalContainer.remove();
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching Ingress YAML:', error);
+                    alert(`Failed to fetch YAML: ${error.message}`);
+                });
+        });
+        cardColumn.appendChild(card);
+        ingressContainer.appendChild(cardColumn);
+    });
+}
+
+    function updateFilterOptions(ingresses) {
+        //// Populate namespace filter
+        const namespaces = new Set();
+        const ingressClasses = new Set();
+
+        ingresses.forEach(ingress => {
+            namespaces.add(ingress.namespace);
+            ingressClasses.add(ingress.ingress_class);
+        });
+
+        // Update Namespace Filter
+        namespaceFilter.innerHTML = `
+            <option value="">All Namespaces</option>
+            ${Array.from(namespaces).map(ns => `
+                <option value="${ns}">${ns}</option>
+            `).join('')}
+        `;
+
+        // Update Ingress Class Filter
+        ingressClassFilter.innerHTML = `
+            <option value="">All Classes</option>
+            ${Array.from(ingressClasses).map(cls => `
+                <option value="${cls}">${cls}</option>
+            `).join('')}
+        `;
+    }
+});
+</script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

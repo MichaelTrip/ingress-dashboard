@@ -34,27 +34,27 @@ def load_kubernetes_config():
         try:
             # Check for custom kubeconfig path
             custom_kubeconfig = os.getenv('KUBECONFIG')
-            
+
             if custom_kubeconfig and os.path.exists(custom_kubeconfig):
                 logger.info(f"Using custom kubeconfig: {custom_kubeconfig}")
                 config.load_kube_config(custom_kubeconfig)
                 return True
-            
+
             # Try default kubeconfig locations
             default_locations = [
                 os.path.expanduser('~/.kube/config'),
                 os.path.expanduser('~/kube/config')
             ]
-            
+
             for kubeconfig_path in default_locations:
                 if os.path.exists(kubeconfig_path):
                     logger.info(f"Using kubeconfig: {kubeconfig_path}")
                     config.load_kube_config(kubeconfig_path)
                     return True
-            
+
             logger.warning("No valid kubeconfig found")
             return False
-        
+
         except Exception as e:
             logger.error(f"Error loading kubeconfig: {e}")
             return False
@@ -107,14 +107,14 @@ def get_ingress_resources(filters=None, force_refresh=False):
         for ing in ingresses.items:
             # Extract relevant information
             hostname = (
-                ing.spec.rules[0].host 
-                if ing.spec.rules and ing.spec.rules[0].host 
+                ing.spec.rules[0].host
+                if ing.spec.rules and ing.spec.rules[0].host
                 else 'N/A'
             )
 
             ingress_class = (
-                ing.spec.ingress_class_name or 
-                (getattr(ing.spec, 'backend', None).resource.kind 
+                ing.spec.ingress_class_name or
+                (getattr(ing.spec, 'backend', None).resource.kind
                  if getattr(ing.spec, 'backend', None) else 'Default')
             )
 
@@ -150,8 +150,8 @@ def get_ingress_resources(filters=None, force_refresh=False):
 def create_app(test_config=None):
     app = Flask(__name__, static_folder='static')
     socketio = SocketIO(
-        app, 
-        cors_allowed_origins="*", 
+        app,
+        cors_allowed_origins="*",
         ping_timeout=30,
         ping_interval=10,
         async_mode='threading'
@@ -164,7 +164,7 @@ def create_app(test_config=None):
     if test_config and 'mock_resources' in test_config:
         def test_get_ingress_resources(filters=None, force_refresh=False):
             mock_resources = test_config['mock_resources']
-            
+
             if filters:
                 mock_resources = [
                     resource for resource in mock_resources
@@ -173,11 +173,119 @@ def create_app(test_config=None):
                         for key, value in filters.items()
                     )
                 ]
-            
+
             return mock_resources
 
         # Replace get_ingress_resources with test version during testing
         globals()['get_ingress_resources'] = test_get_ingress_resources
+    def convert_ingress_to_yaml(ingress):
+        """
+        Convert Kubernetes Ingress resource to a clean, readable YAML
+        """
+        try:
+            import yaml
+
+            # Convert Kubernetes object to a dictionary
+            ingress_dict = {
+                'apiVersion': 'networking.k8s.io/v1',
+                'kind': 'Ingress',
+                'metadata': {
+                    'name': ingress.metadata.name,
+                    'namespace': ingress.metadata.namespace,
+                }
+            }
+
+            # Conditionally add labels if present
+            if ingress.metadata.labels:
+                ingress_dict['metadata']['labels'] = dict(ingress.metadata.labels)
+
+            # Conditionally add annotations if present
+            if ingress.metadata.annotations:
+                ingress_dict['metadata']['annotations'] = dict(ingress.metadata.annotations)
+
+            # Add spec details
+            ingress_dict['spec'] = {
+                'ingressClassName': ingress.spec.ingress_class_name or None,
+                'rules': []
+            }
+
+            # Add rules
+            if ingress.spec.rules:
+                rules = []
+                for rule in ingress.spec.rules:
+                    rule_dict = {
+                        'host': rule.host,
+                        'http': {
+                            'paths': []
+                        }
+                    }
+
+                    if rule.http and rule.http.paths:
+                        for path in rule.http.paths:
+                            path_dict = {
+                                'path': path.path,
+                                'pathType': path.path_type,
+                                'backend': {
+                                    'service': {
+                                        'name': path.backend.service.name,
+                                        'port': {
+                                            'number': path.backend.service.port.number
+                                        }
+                                    }
+                                }
+                            }
+                            rule_dict['http']['paths'].append(path_dict)
+
+                    rules.append(rule_dict)
+
+                ingress_dict['spec']['rules'] = rules
+
+            # Add TLS configurations if present
+            if ingress.spec.tls:
+                tls_configs = []
+                for tls in ingress.spec.tls:
+                    tls_dict = {
+                        'hosts': tls.hosts,
+                        'secretName': tls.secret_name
+                    }
+                    tls_configs.append(tls_dict)
+
+                ingress_dict['spec']['tls'] = tls_configs
+
+            # Convert to YAML with improved formatting
+            yaml_content = yaml.dump(ingress_dict, default_flow_style=False, sort_keys=False)
+
+            return yaml_content
+
+        except Exception as e:
+            logger.error(f"Error converting Ingress to YAML: {e}")
+            return f"# Error generating YAML\n# {str(e)}"
+
+    # Add route for YAML retrieval
+    @app.route('/ingress/yaml/<namespace>/<name>')
+    def get_ingress_yaml(namespace, name):
+        try:
+            # Load Kubernetes configuration
+            load_kubernetes_config()
+
+            # Create Kubernetes API client
+            networking_v1 = client.NetworkingV1Api()
+
+            # Fetch the specific Ingress resource
+            ingress = networking_v1.read_namespaced_ingress(name, namespace)
+
+            # Convert to YAML
+            yaml_content = convert_ingress_to_yaml(ingress)
+
+            return jsonify({
+                'yaml': yaml_content
+            }), 200
+
+        except Exception as e:
+            logger.error(f"Error fetching Ingress YAML: {e}")
+            return jsonify({
+                'error': str(e)
+            }), 500
 
     @app.teardown_appcontext
     def cleanup(exception=None):
@@ -218,13 +326,13 @@ def create_app(test_config=None):
             # Ensure filters is a dictionary
             if filters is None:
                 filters = {}
-            
+
             # Log received filters
             logger.info(f"Received filters: {filters}")
 
             # Retrieve and filter ingresses
             ingresses = get_ingress_resources(filters)
-            
+
             # Log number of filtered ingresses
             logger.info(f"Filtered ingresses count: {len(ingresses)}")
 
@@ -260,8 +368,8 @@ if __name__ == '__main__':
 
     # Run the application
     socketio.run(
-        app, 
-        host='0.0.0.0', 
+        app,
+        host='0.0.0.0',
         port=5000,
         debug=True
     )
