@@ -4,6 +4,15 @@
 
 Kubernetes Ingress Dashboard is a modern, lightweight web application designed to provide real-time visualization of Ingress resources across Kubernetes clusters. Built with Python, Flask, and Gunicorn, this tool offers an intuitive and responsive interface for monitoring and exploring network configurations.
 
+## 🖼️ Screenshots
+
+Main dashboard:
+![main dashboard](./img/ingress-dashboard.png)
+
+Clickable card that shows YAML details:
+
+![yaml-details](./img/ingress-dashboard-yaml.png)
+
 ## 🌟 Key Features
 
 ### 🔍 Comprehensive Ingress Insights
@@ -20,7 +29,6 @@ Kubernetes Ingress Dashboard is a modern, lightweight web application designed t
 ### 🛡️ Enterprise-Ready Characteristics
 - Minimal RBAC permissions
 - Health check endpoints
-- Prometheus-compatible metrics
 - Configurable worker settings
 
 ## 🔧 Technologies
@@ -44,3 +52,11 @@ Kubernetes Ingress Dashboard is a modern, lightweight web application designed t
 ```bash
 docker build -t ingress-dashboard:latest .
 docker run -p 5000:5000 ingress-dashboard
+```
+### Kubernetes
+
+```bash
+kubectl apply -f k8s-deployment.yaml
+kubectl port-forward svc/ingress-dashboard -p 8080:80
+chromium http://localhost:8080
+```
