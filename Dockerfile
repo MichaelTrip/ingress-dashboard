@@ -2,6 +2,11 @@
 # Stage 1: Build stage
 FROM python:3.9-slim-bullseye AS builder
 
+# Build arguments for versioning
+ARG APP_VERSION=dev
+ARG BUILD_DATE=unknown
+ARG GIT_COMMIT=unknown
+
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
@@ -31,10 +36,27 @@ RUN pip install --upgrade pip && \
 # Stage 2: Production stage
 FROM python:3.9-slim-bullseye
 
+# Pass build arguments to runtime
+ARG APP_VERSION=dev
+ARG BUILD_DATE=unknown
+ARG GIT_COMMIT=unknown
+
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 ENV PATH="/opt/venv/bin:$PATH"
+ENV APP_VERSION=${APP_VERSION}
+ENV BUILD_DATE=${BUILD_DATE}
+ENV GIT_COMMIT=${GIT_COMMIT}
+
+# Add OCI labels
+LABEL org.opencontainers.image.title="Kubernetes Ingress Dashboard"
+LABEL org.opencontainers.image.description="Real-time visualization of Kubernetes Ingress resources"
+LABEL org.opencontainers.image.version="${APP_VERSION}"
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
+LABEL org.opencontainers.image.revision="${GIT_COMMIT}"
+LABEL org.opencontainers.image.vendor="MichaelTrip"
+LABEL org.opencontainers.image.licenses="MIT"
 
 # Create a non-root user
 RUN addgroup --system --gid 1001 appuser && \

@@ -7,11 +7,22 @@ from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 from kubernetes import client, config
 
+# Version information from environment variables
+APP_VERSION = os.getenv('APP_VERSION', 'dev')
+BUILD_DATE = os.getenv('BUILD_DATE', 'unknown')
+GIT_COMMIT = os.getenv('GIT_COMMIT', 'unknown')
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Log version information on startup
+logger.info(f"Starting Kubernetes Ingress Dashboard")
+logger.info(f"Version: {APP_VERSION}")
+logger.info(f"Build Date: {BUILD_DATE}")
+logger.info(f"Git Commit: {GIT_COMMIT}")
 
 # Global cache to improve performance
 INGRESS_CACHE = {
@@ -294,19 +305,41 @@ def create_app(test_config=None):
 
     @app.route('/')
     def index():
-        return render_template('index.html')
+        return render_template('index.html',
+                             app_version=APP_VERSION,
+                             git_commit=GIT_COMMIT[:7] if len(GIT_COMMIT) > 7 else GIT_COMMIT,
+                             build_date=BUILD_DATE)
+
+    @app.route('/version')
+    def version_info():
+        return jsonify({
+            'version': APP_VERSION,
+            'build_date': BUILD_DATE,
+            'git_commit': GIT_COMMIT,
+            'git_commit_short': GIT_COMMIT[:7] if len(GIT_COMMIT) > 7 else GIT_COMMIT
+        }), 200
 
     @app.route('/health')
     def health_check():
         try:
             return jsonify({
                 'status': 'healthy',
-                'kubernetes_available': load_kubernetes_config()
+                'kubernetes_available': load_kubernetes_config(),
+                'version': {
+                    'app': APP_VERSION,
+                    'build_date': BUILD_DATE,
+                    'git_commit': GIT_COMMIT
+                }
             }), 200
         except Exception as e:
             return jsonify({
                 'status': 'error',
-                'message': str(e)
+                'message': str(e),
+                'version': {
+                    'app': APP_VERSION,
+                    'build_date': BUILD_DATE,
+                    'git_commit': GIT_COMMIT
+                }
             }), 500
 
     @socketio.on('connect')
