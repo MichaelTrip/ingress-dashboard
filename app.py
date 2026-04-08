@@ -6,6 +6,7 @@ import traceback
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 from kubernetes import client, config
+from kubernetes.client.rest import ApiException
 
 # Version information from environment variables
 APP_VERSION = os.getenv('APP_VERSION', 'dev')
@@ -116,30 +117,144 @@ def generate_mock_ingresses():
         }
     ]
 
+
+def generate_mock_httproutes():
+    return [
+        {
+            'name': 'example-httproute-1',
+            'namespace': 'default',
+            'hostnames': 'app1.example.com',
+            'parent_ref': 'example-gateway',
+            'status': 'Active',
+            'creation_timestamp': str(time.time())
+        }
+    ]
+
+
+def generate_mock_gateways():
+    return [
+        {
+            'name': 'example-gateway',
+            'namespace': 'default',
+            'gateway_class': 'example-gatewayclass',
+            'listeners': 'http:80',
+            'status': 'Active',
+            'creation_timestamp': str(time.time())
+        }
+    ]
+
+
+def generate_mock_gatewayclasses():
+    return [
+        {
+            'name': 'example-gatewayclass',
+            'namespace': 'cluster-wide',
+            'controller': 'example.io/gateway-controller',
+            'description': 'Example GatewayClass',
+            'status': 'Active',
+            'creation_timestamp': str(time.time())
+        }
+    ]
+
+def _list_gateway_api_resources(custom_api, plural, namespaced=True):
+    versions_to_try = ['v1', 'v1beta1', 'v1alpha2']
+    last_error = None
+
+    for version in versions_to_try:
+        try:
+            data = custom_api.list_cluster_custom_object(
+                group='gateway.networking.k8s.io',
+                version=version,
+                plural=plural
+            )
+            return data, version
+        except ApiException as e:
+            last_error = e
+            if e.status == 403 and namespaced:
+                try:
+                    core_v1 = client.CoreV1Api()
+                    namespaces = core_v1.list_namespace().items
+                    items = []
+                    for ns in namespaces:
+                        ns_name = ns.metadata.name
+                        try:
+                            ns_data = custom_api.list_namespaced_custom_object(
+                                group='gateway.networking.k8s.io',
+                                version=version,
+                                namespace=ns_name,
+                                plural=plural
+                            )
+                            items.extend(ns_data.get('items', []))
+                        except ApiException:
+                            continue
+                    return {'items': items}, version
+                except Exception as ns_error:
+                    logger.warning("Gateway API namespaced fallback failed for %s/%s: %s", version, plural, ns_error)
+            elif e.status != 404:
+                logger.warning("Gateway API list failed for %s/%s: %s", version, plural, e)
+        except Exception as e:
+            last_error = e
+            logger.warning("Gateway API list failed for %s/%s: %s", version, plural, e)
+
+    if last_error:
+        raise last_error
+
+    return {'items': []}, None
+
+
+def _get_gateway_api_resource(custom_api, plural, name, namespace=None):
+    versions_to_try = ['v1', 'v1beta1', 'v1alpha2']
+    last_error = None
+
+    for version in versions_to_try:
+        try:
+            if namespace:
+                data = custom_api.get_namespaced_custom_object(
+                    group='gateway.networking.k8s.io',
+                    version=version,
+                    namespace=namespace,
+                    plural=plural,
+                    name=name
+                )
+            else:
+                data = custom_api.get_cluster_custom_object(
+                    group='gateway.networking.k8s.io',
+                    version=version,
+                    plural=plural,
+                    name=name
+                )
+            return data
+        except ApiException as e:
+            last_error = e
+            if e.status != 404:
+                logger.warning("Gateway API get failed for %s/%s %s: %s", version, plural, name, e)
+        except Exception as e:
+            last_error = e
+            logger.warning("Gateway API get failed for %s/%s %s: %s", version, plural, name, e)
+
+    if last_error:
+        raise last_error
+
+    return {}
+
+
 def get_ingress_resources(filters=None, force_refresh=False):
     """
     Retrieve and filter Ingress resources
     """
     try:
-        # Ensure Kubernetes configuration is loaded
         if not load_kubernetes_config():
             logger.warning("Cannot load Kubernetes configuration")
             return generate_mock_ingresses()
 
-        # Ensure filters is a dictionary
         filters = filters or {}
         logger.info(f"Received filters: {filters}")
 
-        # Create Kubernetes API client
         networking_v1 = client.NetworkingV1Api()
-
-        # Fetch ingress resources from all namespaces
         ingresses = networking_v1.list_ingress_for_all_namespaces()
 
-        # Process and prepare ingress data
         ingress_list = []
         for ing in ingresses.items:
-            # Extract relevant information
             hostname = (
                 ing.spec.rules[0].host
                 if ing.spec.rules and ing.spec.rules[0].host
@@ -165,7 +280,6 @@ def get_ingress_resources(filters=None, force_refresh=False):
 
             ingress_list.append(ingress_details)
 
-        # Apply filtering
         filtered_resources = ingress_list
         for key, value in filters.items():
             filtered_resources = [
@@ -174,12 +288,154 @@ def get_ingress_resources(filters=None, force_refresh=False):
             ]
 
         logger.info(f"Filtered ingresses count: {len(filtered_resources)}")
-        return filtered_resources or generate_mock_ingresses()
+        return filtered_resources
 
     except Exception as e:
         logger.error(f"Error retrieving Ingress resources: {e}")
         traceback.print_exc()
         return generate_mock_ingresses()
+
+
+def get_httproute_resources(filters=None, force_refresh=False):
+    try:
+        if not load_kubernetes_config():
+            logger.warning("Cannot load Kubernetes configuration")
+            return generate_mock_httproutes()
+
+        filters = filters or {}
+        custom_api = client.CustomObjectsApi()
+        routes, _ = _list_gateway_api_resources(custom_api, 'httproutes', namespaced=True)
+
+        route_list = []
+        for route in routes.get('items', []):
+            spec = route.get('spec', {})
+            status_obj = route.get('status', {})
+            hostnames = ', '.join(spec.get('hostnames', []) or ['N/A'])
+            parent_refs = spec.get('parentRefs', []) or []
+            parent_ref = ', '.join([pref.get('name', 'N/A') for pref in parent_refs]) or 'N/A'
+            parent_ref_class = ', '.join([
+                pref.get('sectionName') or pref.get('name', 'N/A')
+                for pref in parent_refs
+            ]) or 'N/A'
+            parents_status = status_obj.get('parents', []) or []
+            status = 'Active' if parents_status else 'Pending'
+
+            route_list.append({
+                'name': route.get('metadata', {}).get('name', 'N/A'),
+                'namespace': route.get('metadata', {}).get('namespace', 'default'),
+                'hostnames': hostnames,
+                'parent_ref': parent_ref,
+                'ingress_class': parent_ref_class,
+                'status': status,
+                'creation_timestamp': route.get('metadata', {}).get('creationTimestamp', 'N/A')
+            })
+
+        filtered_resources = route_list
+        for key, value in filters.items():
+            filtered_resources = [
+                resource for resource in filtered_resources
+                if str(resource.get(key, '')).lower() == str(value).lower()
+            ]
+
+        return filtered_resources
+    except Exception as e:
+        logger.error(f"Error retrieving HTTPRoute resources: {e}")
+        traceback.print_exc()
+        return generate_mock_httproutes()
+
+
+def get_gateway_resources(filters=None, force_refresh=False):
+    try:
+        if not load_kubernetes_config():
+            logger.warning("Cannot load Kubernetes configuration")
+            return generate_mock_gateways()
+
+        filters = filters or {}
+        custom_api = client.CustomObjectsApi()
+        gateways, _ = _list_gateway_api_resources(custom_api, 'gateways', namespaced=True)
+
+        gateway_list = []
+        for gateway in gateways.get('items', []):
+            spec = gateway.get('spec', {})
+            listeners = spec.get('listeners', []) or []
+            listener_text = ', '.join([
+                f"{listener.get('name', 'listener')}:{listener.get('port', 'N/A')}"
+                for listener in listeners
+            ]) or 'N/A'
+            status_obj = gateway.get('status', {})
+            status = 'Active' if (status_obj.get('addresses') or status_obj.get('listeners')) else 'Pending'
+
+            gateway_list.append({
+                'name': gateway.get('metadata', {}).get('name', 'N/A'),
+                'namespace': gateway.get('metadata', {}).get('namespace', 'default'),
+                'gateway_class': spec.get('gatewayClassName', 'N/A'),
+                'ingress_class': spec.get('gatewayClassName', 'N/A'),
+                'listeners': listener_text,
+                'status': status,
+                'creation_timestamp': gateway.get('metadata', {}).get('creationTimestamp', 'N/A')
+            })
+
+        filtered_resources = gateway_list
+        for key, value in filters.items():
+            filtered_resources = [
+                resource for resource in filtered_resources
+                if str(resource.get(key, '')).lower() == str(value).lower()
+            ]
+
+        return filtered_resources
+    except Exception as e:
+        logger.error(f"Error retrieving Gateway resources: {e}")
+        traceback.print_exc()
+        return generate_mock_gateways()
+
+
+def get_gatewayclass_resources(filters=None, force_refresh=False):
+    try:
+        if not load_kubernetes_config():
+            logger.warning("Cannot load Kubernetes configuration")
+            return generate_mock_gatewayclasses()
+
+        filters = filters or {}
+        custom_api = client.CustomObjectsApi()
+        gatewayclasses, _ = _list_gateway_api_resources(custom_api, 'gatewayclasses', namespaced=False)
+
+        gatewayclass_list = []
+        for gatewayclass in gatewayclasses.get('items', []):
+            metadata = gatewayclass.get('metadata', {})
+            spec = gatewayclass.get('spec', {})
+            description = metadata.get('annotations', {}).get('description', 'N/A')
+            status = 'Active' if gatewayclass.get('status') else 'Pending'
+
+            gatewayclass_list.append({
+                'name': metadata.get('name', 'N/A'),
+                'namespace': 'cluster-wide',
+                'controller': spec.get('controllerName', 'N/A'),
+                'description': description,
+                'status': status,
+                'creation_timestamp': metadata.get('creationTimestamp', 'N/A')
+            })
+
+        filtered_resources = gatewayclass_list
+        for key, value in filters.items():
+            filtered_resources = [
+                resource for resource in filtered_resources
+                if str(resource.get(key, '')).lower() == str(value).lower()
+            ]
+
+        return filtered_resources
+    except Exception as e:
+        logger.error(f"Error retrieving GatewayClass resources: {e}")
+        traceback.print_exc()
+        return generate_mock_gatewayclasses()
+
+def convert_dict_to_yaml(resource_dict):
+    try:
+        import yaml
+        return yaml.dump(resource_dict, default_flow_style=False, sort_keys=False)
+    except Exception as e:
+        logger.error(f"Error converting resource to YAML: {e}")
+        return f"# Error generating YAML\n# {str(e)}"
+
 
 def create_app(test_config=None):
     app = Flask(__name__, static_folder='static')
@@ -191,140 +447,103 @@ def create_app(test_config=None):
         async_mode='threading'
     )
 
-    # Store the original get_ingress_resources function
     original_get_ingress_resources = get_ingress_resources
+    original_get_httproute_resources = get_httproute_resources
+    original_get_gateway_resources = get_gateway_resources
+    original_get_gatewayclass_resources = get_gatewayclass_resources
 
-    # If test configuration is provided, create a test-specific version of the function
-    if test_config and 'mock_resources' in test_config:
-        def test_get_ingress_resources(filters=None, force_refresh=False):
-            mock_resources = test_config['mock_resources']
+    if test_config:
+        def create_test_getter(config_key, default_resources):
+            def test_get_resources(filters=None, force_refresh=False):
+                mock_resources = test_config.get(config_key, default_resources)
+                if filters:
+                    mock_resources = [
+                        resource for resource in mock_resources
+                        if all(
+                            str(resource.get(key, '')).lower() == str(value).lower()
+                            for key, value in filters.items()
+                        )
+                    ]
+                return mock_resources
+            return test_get_resources
 
-            if filters:
-                mock_resources = [
-                    resource for resource in mock_resources
-                    if all(
-                        str(resource.get(key, '')).lower() == str(value).lower()
-                        for key, value in filters.items()
-                    )
-                ]
-
-            return mock_resources
-
-        # Replace get_ingress_resources with test version during testing
-        globals()['get_ingress_resources'] = test_get_ingress_resources
+        globals()['get_ingress_resources'] = create_test_getter('mock_resources', [])
+        globals()['get_httproute_resources'] = create_test_getter('mock_httproutes', [])
+        globals()['get_gateway_resources'] = create_test_getter('mock_gateways', [])
+        globals()['get_gatewayclass_resources'] = create_test_getter('mock_gatewayclasses', [])
     def convert_ingress_to_yaml(ingress):
-        """
-        Convert Kubernetes Ingress resource to a clean, readable YAML
-        """
         try:
-            import yaml
-
-            # Convert Kubernetes object to a dictionary
-            ingress_dict = {
-                'apiVersion': 'networking.k8s.io/v1',
-                'kind': 'Ingress',
-                'metadata': {
-                    'name': ingress.metadata.name,
-                    'namespace': ingress.metadata.namespace,
-                }
-            }
-
-            # Conditionally add labels if present
-            if ingress.metadata.labels:
-                ingress_dict['metadata']['labels'] = dict(ingress.metadata.labels)
-
-            # Conditionally add annotations if present
-            if ingress.metadata.annotations:
-                ingress_dict['metadata']['annotations'] = dict(ingress.metadata.annotations)
-
-            # Add spec details
-            ingress_dict['spec'] = {
-                'ingressClassName': ingress.spec.ingress_class_name or None,
-                'rules': []
-            }
-
-            # Add rules
-            if ingress.spec.rules:
-                rules = []
-                for rule in ingress.spec.rules:
-                    rule_dict = {
-                        'host': rule.host,
-                        'http': {
-                            'paths': []
-                        }
-                    }
-
-                    if rule.http and rule.http.paths:
-                        for path in rule.http.paths:
-                            path_dict = {
-                                'path': path.path,
-                                'pathType': path.path_type,
-                                'backend': {
-                                    'service': {
-                                        'name': path.backend.service.name,
-                                        'port': {
-                                            'number': path.backend.service.port.number
-                                        }
-                                    }
-                                }
-                            }
-                            rule_dict['http']['paths'].append(path_dict)
-
-                    rules.append(rule_dict)
-
-                ingress_dict['spec']['rules'] = rules
-
-            # Add TLS configurations if present
-            if ingress.spec.tls:
-                tls_configs = []
-                for tls in ingress.spec.tls:
-                    tls_dict = {
-                        'hosts': tls.hosts,
-                        'secretName': tls.secret_name
-                    }
-                    tls_configs.append(tls_dict)
-
-                ingress_dict['spec']['tls'] = tls_configs
-
-            # Convert to YAML with improved formatting
-            yaml_content = yaml.dump(ingress_dict, default_flow_style=False, sort_keys=False)
-
-            return yaml_content
-
+            ingress_dict = ingress.to_dict()
+            return convert_dict_to_yaml(ingress_dict)
         except Exception as e:
             logger.error(f"Error converting Ingress to YAML: {e}")
             return f"# Error generating YAML\n# {str(e)}"
 
-    # Add route for YAML retrieval
     @app.route('/ingress/yaml/<namespace>/<name>')
     def get_ingress_yaml(namespace, name):
         try:
-            # Load Kubernetes configuration
             load_kubernetes_config()
-
-            # Create Kubernetes API client
             networking_v1 = client.NetworkingV1Api()
-
-            # Fetch the specific Ingress resource
             ingress = networking_v1.read_namespaced_ingress(name, namespace)
-
-            # Convert to YAML
             yaml_content = convert_ingress_to_yaml(ingress)
-
-            return jsonify({
-                'yaml': yaml_content
-            }), 200
-
+            return jsonify({'yaml': yaml_content}), 200
         except Exception as e:
             logger.error(f"Error fetching Ingress YAML: {e}")
-            return jsonify({
-                'error': str(e)
-            }), 500
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/httproute/yaml/<namespace>/<name>')
+    def get_httproute_yaml(namespace, name):
+        try:
+            load_kubernetes_config()
+            custom_api = client.CustomObjectsApi()
+            route = _get_gateway_api_resource(
+                custom_api,
+                plural='httproutes',
+                namespace=namespace,
+                name=name
+            )
+            return jsonify({'yaml': convert_dict_to_yaml(route)}), 200
+        except Exception as e:
+            logger.error(f"Error fetching HTTPRoute YAML: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/gateway/yaml/<namespace>/<name>')
+    def get_gateway_yaml(namespace, name):
+        try:
+            load_kubernetes_config()
+            custom_api = client.CustomObjectsApi()
+            gateway = _get_gateway_api_resource(
+                custom_api,
+                plural='gateways',
+                namespace=namespace,
+                name=name
+            )
+            return jsonify({'yaml': convert_dict_to_yaml(gateway)}), 200
+        except Exception as e:
+            logger.error(f"Error fetching Gateway YAML: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/gatewayclass/yaml/<name>')
+    def get_gatewayclass_yaml(name):
+        try:
+            load_kubernetes_config()
+            custom_api = client.CustomObjectsApi()
+            gatewayclass = _get_gateway_api_resource(
+                custom_api,
+                plural='gatewayclasses',
+                name=name
+            )
+            return jsonify({'yaml': convert_dict_to_yaml(gatewayclass)}), 200
+        except Exception as e:
+            logger.error(f"Error fetching GatewayClass YAML: {e}")
+            return jsonify({'error': str(e)}), 500
 
     @app.teardown_appcontext
     def cleanup(exception=None):
-        # Restore original get_ingress_resources function
         globals()['get_ingress_resources'] = original_get_ingress_resources
+        globals()['get_httproute_resources'] = original_get_httproute_resources
+        globals()['get_gateway_resources'] = original_get_gateway_resources
+        globals()['get_gatewayclass_resources'] = original_get_gatewayclass_resources
 
     @app.route('/')
     def index():
@@ -369,36 +588,67 @@ def create_app(test_config=None):
     def handle_connect():
         logger.info('Client connected')
         try:
-            # Send initial data on connect
             ingresses = get_ingress_resources()
+            httproutes = get_httproute_resources()
+            gateways = get_gateway_resources()
+            gatewayclasses = get_gatewayclass_resources()
             emit('ingress_update', ingresses)
+            emit('httproute_update', httproutes)
+            emit('gateway_update', gateways)
+            emit('gatewayclass_update', gatewayclasses)
         except Exception as e:
             logger.error(f"Error on client connect: {e}")
             emit('ingress_update', generate_mock_ingresses())
+            emit('httproute_update', generate_mock_httproutes())
+            emit('gateway_update', generate_mock_gateways())
+            emit('gatewayclass_update', generate_mock_gatewayclasses())
 
     @socketio.on('get_ingresses')
     def handle_get_ingresses(filters=None):
         try:
-            # Ensure filters is a dictionary
             if filters is None:
                 filters = {}
-
-            # Log received filters
             logger.info(f"Received filters: {filters}")
-
-            # Retrieve and filter ingresses
             ingresses = get_ingress_resources(filters)
-
-            # Log number of filtered ingresses
             logger.info(f"Filtered ingresses count: {len(ingresses)}")
-
-            # Emit the filtered ingresses
             emit('ingress_update', ingresses)
         except Exception as e:
             logger.error(f"Error getting ingresses: {e}")
             traceback.print_exc()
-            # Emit mock data or empty list in case of error
             emit('ingress_update', generate_mock_ingresses())
+
+    @socketio.on('get_httproutes')
+    def handle_get_httproutes(filters=None):
+        try:
+            filters = filters or {}
+            resources = get_httproute_resources(filters)
+            emit('httproute_update', resources)
+        except Exception as e:
+            logger.error(f"Error getting httproutes: {e}")
+            traceback.print_exc()
+            emit('httproute_update', generate_mock_httproutes())
+
+    @socketio.on('get_gateways')
+    def handle_get_gateways(filters=None):
+        try:
+            filters = filters or {}
+            resources = get_gateway_resources(filters)
+            emit('gateway_update', resources)
+        except Exception as e:
+            logger.error(f"Error getting gateways: {e}")
+            traceback.print_exc()
+            emit('gateway_update', generate_mock_gateways())
+
+    @socketio.on('get_gatewayclasses')
+    def handle_get_gatewayclasses(filters=None):
+        try:
+            filters = filters or {}
+            resources = get_gatewayclass_resources(filters)
+            emit('gatewayclass_update', resources)
+        except Exception as e:
+            logger.error(f"Error getting gatewayclasses: {e}")
+            traceback.print_exc()
+            emit('gatewayclass_update', generate_mock_gatewayclasses())
 
     # Skip background thread in test mode
     if not test_config:
@@ -412,7 +662,13 @@ def create_app(test_config=None):
             while True:
                 try:
                     ingresses = get_ingress_resources(force_refresh=True)
+                    httproutes = get_httproute_resources(force_refresh=True)
+                    gateways = get_gateway_resources(force_refresh=True)
+                    gatewayclasses = get_gatewayclass_resources(force_refresh=True)
                     socketio.emit('ingress_update', ingresses)
+                    socketio.emit('httproute_update', httproutes)
+                    socketio.emit('gateway_update', gateways)
+                    socketio.emit('gatewayclass_update', gatewayclasses)
                 except Exception as e:
                     logger.error(f"Background update failed: {e}")
                 time.sleep(refresh_interval_seconds)
