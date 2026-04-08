@@ -30,6 +30,8 @@ spec:
           value: "unknown"
         - name: GIT_COMMIT
           value: "unknown"
+        - name: REFRESH_INTERVAL_SECONDS
+          value: "30"
         resources:
           requests:
             cpu: 100m

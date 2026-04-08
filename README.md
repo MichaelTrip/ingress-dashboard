@@ -53,6 +53,13 @@ Clickable card that shows YAML details:
 docker build -t ingress-dashboard:latest .
 docker run -p 5000:5000 ingress-dashboard
 ```
+
+Configure refresh interval (seconds):
+
+```bash
+docker run -p 5000:5000 -e REFRESH_INTERVAL_SECONDS=15 ingress-dashboard
+```
+
 ### Kubernetes
 
 ```bash
@@ -60,3 +67,5 @@ kubectl apply -f k8s-deployment.yaml
 kubectl port-forward svc/ingress-dashboard -p 8080:80
 chromium http://localhost:8080
 ```
+
+`REFRESH_INTERVAL_SECONDS` defaults to `30` and has a minimum value of `5`.

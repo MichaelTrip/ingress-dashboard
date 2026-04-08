@@ -24,6 +24,29 @@ logger.info(f"Version: {APP_VERSION}")
 logger.info(f"Build Date: {BUILD_DATE}")
 logger.info(f"Git Commit: {GIT_COMMIT}")
 
+
+def get_refresh_interval_seconds():
+    """Get background refresh interval from env with validation."""
+    refresh_interval_raw = os.getenv('REFRESH_INTERVAL_SECONDS', '30')
+
+    try:
+        refresh_interval = int(refresh_interval_raw)
+    except ValueError:
+        logger.warning(
+            "Invalid REFRESH_INTERVAL_SECONDS='%s'. Falling back to 30 seconds.",
+            refresh_interval_raw
+        )
+        return 30
+
+    if refresh_interval < 5:
+        logger.warning(
+            "REFRESH_INTERVAL_SECONDS=%s is too low. Using minimum of 5 seconds.",
+            refresh_interval
+        )
+        return 5
+
+    return refresh_interval
+
 # Global cache to improve performance
 INGRESS_CACHE = {
     'resources': [],
@@ -379,6 +402,12 @@ def create_app(test_config=None):
 
     # Skip background thread in test mode
     if not test_config:
+        refresh_interval_seconds = get_refresh_interval_seconds()
+        logger.info(
+            "Starting background ingress refresh every %s seconds",
+            refresh_interval_seconds
+        )
+
         def background_update():
             while True:
                 try:
@@ -386,7 +415,7 @@ def create_app(test_config=None):
                     socketio.emit('ingress_update', ingresses)
                 except Exception as e:
                     logger.error(f"Background update failed: {e}")
-                time.sleep(30)  # Update every 30 seconds
+                time.sleep(refresh_interval_seconds)
 
         # Start background thread
         threading.Thread(target=background_update, daemon=True).start()

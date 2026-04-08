@@ -183,12 +183,22 @@
             .card {
                 background: var(--card-bg);
                 border: 1px solid var(--border-color);
+                color: var(--text-primary);
                 border-radius: 16px;
                 transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
                 box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
                 cursor: pointer;
                 position: relative;
                 overflow: hidden;
+            }
+
+            .card-text p,
+            .card-text strong {
+                color: var(--text-primary);
+            }
+
+            .card .text-secondary {
+                color: var(--text-secondary) !important;
             }
 
             .card::before {
@@ -325,11 +335,14 @@
                 border-color: white;
             }
 
-            .filter-buttons {
-                display: flex;
-                gap: 0.5rem;
-                align-items: flex-end;
-                flex-wrap: wrap;
+            .filter-buttons .d-flex {
+                align-items: stretch;
+            }
+
+            .filter-buttons .btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
             }
 
             .connection-status {
@@ -382,6 +395,28 @@
 
             .modal-body {
                 padding: 2rem;
+            }
+
+            .modal .table {
+                --bs-table-bg: transparent;
+                --bs-table-color: var(--text-primary);
+                --bs-table-border-color: var(--border-color);
+                margin-bottom: 0;
+                color: var(--text-primary);
+            }
+
+            .modal .table > :not(caption) > * > * {
+                background-color: transparent;
+                color: var(--text-primary);
+                border-bottom-color: var(--border-color);
+            }
+
+            .modal .table th {
+                color: var(--text-secondary);
+            }
+
+            .modal .table a {
+                color: var(--k8s-blue);
             }
 
             .nav-tabs {
@@ -563,7 +598,7 @@
 
         <!-- Filtering Section -->
         <div class="filter-section mb-4">
-            <div class="row g-3">
+            <div class="row g-3 align-items-end">
                 <div class="col-lg-2 col-md-4 col-sm-6">
                     <label class="form-label">Namespace</label>
                     <select id="namespaceFilter" class="form-select">
@@ -588,21 +623,20 @@
                     <label class="form-label">Search</label>
                     <div class="input-group">
                         <input type="text" id="searchInput" class="form-control" placeholder="Search ingresses...">
-                        <button id="searchBtn" class="btn btn-secondary" type="button">
+                        <button id="searchBtn" class="btn btn-secondary" type="button" title="Search within currently displayed tiles">
                             <i class="bi bi-search"></i>
                         </button>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6 col-sm-12 filter-buttons">
-                    <label class="form-label d-none d-lg-block">&nbsp;</label>
                     <div class="d-flex gap-2 w-100">
-                        <button id="applyFiltersBtn" class="btn btn-primary flex-grow-1">
-                            <i class="bi bi-funnel me-2"></i>Apply
+                        <button id="resetFiltersBtn" class="btn btn-secondary flex-grow-1" title="Clear all selected filters and search text">
+                            <i class="bi bi-x-circle me-2"></i>Clear All
                         </button>
-                        <button id="resetFiltersBtn" class="btn btn-secondary">
-                            <i class="bi bi-arrow-clockwise"></i>
+                        <button id="pauseRefreshBtn" class="btn btn-secondary flex-grow-1" title="Pause automatic refresh">
+                            <i class="bi bi-pause-fill me-2"></i>Pause
                         </button>
-                        <button id="exportBtn" class="btn btn-secondary">
+                        <button id="exportBtn" class="btn btn-secondary" title="Export currently visible ingress tiles to CSV">
                             <i class="bi bi-download"></i>
                         </button>
                     </div>
@@ -687,12 +721,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const namespaceFilter = document.getElementById('namespaceFilter');
     const ingressClassFilter = document.getElementById('ingressClassFilter');
     const statusFilter = document.getElementById('statusFilter');
-    const applyFiltersBtn = document.getElementById('applyFiltersBtn');
     const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+    const pauseRefreshBtn = document.getElementById('pauseRefreshBtn');
     const connectionBadge = document.getElementById('connectionBadge');
     const searchInput = document.getElementById('searchInput');
     const searchBtn = document.getElementById('searchBtn');
     const exportBtn = document.getElementById('exportBtn');
+    let refreshPaused = false;
+    const FILTER_STORAGE_KEY = 'ingressDashboardFilters';
+    let allIngresses = [];
+    let isProgrammaticFilterUpdate = false;
+    const activeFilters = {
+        namespace: '',
+        ingress_class: '',
+        status: ''
+    };
+
+    loadActiveFilters();
 
     // Stats elements
     const totalIngresses = document.getElementById('totalIngresses');
@@ -801,50 +846,163 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Ingress update handler
-    socket.on('ingress_update', (ingresses) => {
-        console.log('Received ingresses:', ingresses);
-        updateIngressContainer(ingresses);
-        updateFilterOptions(ingresses);
-        updateStats(ingresses);
+    // Pause/resume refresh toggle
+    pauseRefreshBtn.addEventListener('click', () => {
+        refreshPaused = !refreshPaused;
+        if (refreshPaused) {
+            pauseRefreshBtn.title = 'Resume automatic refresh';
+            pauseRefreshBtn.innerHTML = '<i class="bi bi-play-fill me-2"></i>Resume';
+            pauseRefreshBtn.classList.replace('btn-secondary', 'btn-warning');
+        } else {
+            pauseRefreshBtn.title = 'Pause automatic refresh';
+            pauseRefreshBtn.innerHTML = '<i class="bi bi-pause-fill me-2"></i>Pause';
+            pauseRefreshBtn.classList.replace('btn-warning', 'btn-secondary');
+        }
     });
 
-    // Apply Filters Event Listener
-    applyFiltersBtn.addEventListener('click', () => {
-        const filters = {};
-
-        // Only add non-empty filter values
-        if (namespaceFilter.value) {
-            filters.namespace = namespaceFilter.value;
+    // Ingress update handler
+    socket.on('ingress_update', (ingresses) => {
+        if (refreshPaused) {
+            return;
         }
-
-        if (ingressClassFilter.value) {
-            filters.ingress_class = ingressClassFilter.value;
-        }
-
-        if (statusFilter.value) {
-            filters.status = statusFilter.value;
-        }
-
-        console.log('Applying filters:', filters);
-
-        // Emit filter request via WebSocket
-        socket.emit('get_ingresses', filters);
+        console.log('Received ingresses:', ingresses);
+        allIngresses = Array.isArray(ingresses) ? ingresses : [];
+        isProgrammaticFilterUpdate = true;
+        updateFilterOptions(allIngresses);
+        syncControlsFromActiveFilters();
+        isProgrammaticFilterUpdate = false;
+        applyCurrentFilters();
     });
 
     // Reset Filters Event Listener
     resetFiltersBtn.addEventListener('click', () => {
-        // Reset all filter dropdowns to default
-        namespaceFilter.selectedIndex = 0;
-        ingressClassFilter.selectedIndex = 0;
-        statusFilter.selectedIndex = 0;
+        activeFilters.namespace = '';
+        activeFilters.ingress_class = '';
+        activeFilters.status = '';
+        saveActiveFilters();
+        isProgrammaticFilterUpdate = true;
+        syncControlsFromActiveFilters();
+        isProgrammaticFilterUpdate = false;
         searchInput.value = ''; // Clear search input
 
         console.log('Resetting filters');
-
-        // Emit request to get all ingresses
-        socket.emit('get_ingresses', null);
+        applyCurrentFilters();
     });
+
+    namespaceFilter.addEventListener('change', () => {
+        if (isProgrammaticFilterUpdate) {
+            return;
+        }
+        syncActiveFiltersFromControls();
+        saveActiveFilters();
+        applyCurrentFilters();
+    });
+
+    ingressClassFilter.addEventListener('change', () => {
+        if (isProgrammaticFilterUpdate) {
+            return;
+        }
+        syncActiveFiltersFromControls();
+        saveActiveFilters();
+        applyCurrentFilters();
+    });
+
+    statusFilter.addEventListener('change', () => {
+        if (isProgrammaticFilterUpdate) {
+            return;
+        }
+        syncActiveFiltersFromControls();
+        saveActiveFilters();
+        applyCurrentFilters();
+    });
+
+    function loadActiveFilters() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(FILTER_STORAGE_KEY) || '{}');
+            activeFilters.namespace = saved.namespace || '';
+            activeFilters.ingress_class = saved.ingress_class || '';
+            activeFilters.status = saved.status || '';
+        } catch (error) {
+            console.warn('Failed to load saved filters:', error);
+        }
+    }
+
+    function saveActiveFilters() {
+        localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(activeFilters));
+    }
+
+    function syncActiveFiltersFromControls() {
+        activeFilters.namespace = namespaceFilter.value || '';
+        activeFilters.ingress_class = ingressClassFilter.value || '';
+        activeFilters.status = statusFilter.value || '';
+    }
+
+    function syncControlsFromActiveFilters() {
+        if (!optionExists(namespaceFilter, activeFilters.namespace)) {
+            ensureOption(namespaceFilter, activeFilters.namespace);
+        }
+        if (!optionExists(ingressClassFilter, activeFilters.ingress_class)) {
+            ensureOption(ingressClassFilter, activeFilters.ingress_class);
+        }
+
+        namespaceFilter.value = activeFilters.namespace;
+        ingressClassFilter.value = activeFilters.ingress_class;
+        statusFilter.value = activeFilters.status;
+    }
+
+    function getActiveFilters() {
+        const filters = {};
+
+        if (activeFilters.namespace) {
+            filters.namespace = activeFilters.namespace;
+        }
+
+        if (activeFilters.ingress_class) {
+            filters.ingress_class = activeFilters.ingress_class;
+        }
+
+        if (activeFilters.status) {
+            filters.status = activeFilters.status;
+        }
+
+        return filters;
+    }
+
+    function optionExists(selectElement, value) {
+        if (!value) {
+            return true;
+        }
+
+        return Array.from(selectElement.options).some(option => option.value === value);
+    }
+
+    function ensureOption(selectElement, value) {
+        if (!value || optionExists(selectElement, value)) {
+            return;
+        }
+
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = value;
+        selectElement.appendChild(option);
+    }
+
+    function filterIngresses(ingresses, filters) {
+        return ingresses.filter(ingress =>
+            Object.entries(filters).every(([key, value]) =>
+                String(ingress[key] || '').toLowerCase() === String(value).toLowerCase()
+            )
+        );
+    }
+
+    function applyCurrentFilters() {
+        const filters = getActiveFilters();
+        console.log('Applying filters:', filters);
+
+        const filteredIngresses = filterIngresses(allIngresses, filters);
+        updateIngressContainer(filteredIngresses);
+        updateStats(filteredIngresses);
+    }
 
     function updateIngressContainer(ingresses) {
         // Clear existing container
@@ -1196,6 +1354,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <option value="${ns}">${ns}</option>
             `).join('')}
         `;
+        ensureOption(namespaceFilter, activeFilters.namespace);
 
         // Update Ingress Class Filter
         ingressClassFilter.innerHTML = `
@@ -1204,6 +1363,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <option value="${cls}">${cls}</option>
             `).join('')}
         `;
+        ensureOption(ingressClassFilter, activeFilters.ingress_class);
     }
 
     // Add fadeInUp animation
