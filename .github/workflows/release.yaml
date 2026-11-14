@@ -65,7 +65,7 @@ jobs:
         images: ${{ env.REGISTRY }}/${{ steps.repo.outputs.repo }}
 
     - name: Build and push Docker image
-      uses: docker/build-push-action@v3
+      uses: docker/build-push-action@v7
       with:
         context: .
         push: true
