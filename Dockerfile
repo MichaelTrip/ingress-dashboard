@@ -1,6 +1,6 @@
 # Use a multi-stage build for efficiency
 # Stage 1: Build stage
-FROM python:3.13-slim-bullseye AS builder
+FROM python:3.13-slim-bookworm AS builder
 
 # Build arguments for versioning
 ARG APP_VERSION=dev
@@ -8,10 +8,10 @@ ARG BUILD_DATE=unknown
 ARG GIT_COMMIT=unknown
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-ENV PIP_NO_CACHE_DIR 1
-ENV PIP_DISABLE_PIP_VERSION_CHECK 1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Set working directory
 WORKDIR /app
@@ -19,7 +19,7 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    python3-dev \
+    libc6-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -34,7 +34,7 @@ RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
 # Stage 2: Production stage
-FROM python:3.13-slim-bullseye
+FROM python:3.13-slim-bookworm
 
 # Pass build arguments to runtime
 ARG APP_VERSION=dev
@@ -42,8 +42,8 @@ ARG BUILD_DATE=unknown
 ARG GIT_COMMIT=unknown
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 ENV PATH="/opt/venv/bin:$PATH"
 ENV APP_VERSION=${APP_VERSION}
 ENV BUILD_DATE=${BUILD_DATE}
