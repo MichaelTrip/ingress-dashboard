@@ -79,4 +79,4 @@ EXPOSE 5000
 
 
 # Run the application
-CMD ["gunicorn", "--worker-class", "eventlet", "-w", "1", "--bind", "0.0.0.0:5000", "wsgi:app"]
+CMD ["gunicorn", "--config", "gunicorn_config.py", "wsgi:app"]

@@ -37,10 +37,10 @@ pip install -r requirements.txt
 python app.py  # Starts on port 5000 with debug=True
 
 # Alternative: Gunicorn with SocketIO
-gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:5000 wsgi:app
+gunicorn --config gunicorn_config.py wsgi:app
 ```
 
-**Critical**: Use `eventlet` worker class for SocketIO support. Standard workers will break WebSocket connections.
+**Critical**: Use one `gthread` worker with `simple-websocket` for SocketIO support, matching `async_mode='threading'` in the app.
 
 ### Testing
 ```bash
@@ -58,7 +58,7 @@ docker run -p 5000:5000 ingress-dashboard
 ```
 - Stage 1: Builds dependencies in venv (`/opt/venv`)
 - Stage 2: Copies venv to slim image, runs as non-root user (UID 1001)
-- CMD: `gunicorn --worker-class eventlet -w 1`
+- CMD: `gunicorn --config gunicorn_config.py wsgi:app`
 
 **Kubernetes**:
 ```bash
@@ -104,11 +104,11 @@ Manually constructs clean dict from K8s object (avoids `client.ApiClient().sanit
 **Package management**: Dual system (Poetry in `pyproject.toml` + pip in `requirements.txt`)
 
 **Key dependencies**:
-- `flask-socketio` + `eventlet` (async_mode='threading' in app.py)
+- `flask-socketio` + `simple-websocket` (async_mode='threading' in app.py)
 - `kubernetes` Python client v24+
 - `PyYAML` for YAML serialization
 
-**Gunicorn config** (`gunicorn_config.py`): 2 sync workers for non-SocketIO mode. Override with `--worker-class eventlet` for SocketIO.
+**Gunicorn config** (`gunicorn_config.py`): One `gthread` worker with 100 threads for SocketIO. The Docker command loads this configuration explicitly.
 
 ## Common Tasks
 
