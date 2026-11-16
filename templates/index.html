@@ -16,565 +16,197 @@
         <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" rel="stylesheet" />
 
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
             :root {
-                --k8s-blue: #326CE5;
-                --k8s-light-blue: #4D7DEA;
-                --k8s-dark-blue: #1a4d9e;
-                --background-color: #0f1419;
-                --card-bg: #1a1f2e;
-                --text-primary: #ffffff;
-                --text-secondary: #8b92a4;
-                --border-color: rgba(255, 255, 255, 0.1);
-                --success-color: #10b981;
-                --warning-color: #f59e0b;
-                --danger-color: #ef4444;
-                --glass-bg: rgba(255, 255, 255, 0.05);
-                --glass-border: rgba(255, 255, 255, 0.1);
+                color-scheme: dark;
+                --k8s-blue: #87b2ff;
+                --background-color: #111820;
+                --card-bg: #18222d;
+                --text-primary: #edf2f7;
+                --text-secondary: #a7b6c5;
+                --border-color: #394958;
+                --surface-hover: #223140;
+                --selection-bg: #233e60;
+                --success-bg: #173c31;
+                --success-text: #9ce1bf;
+                --warning-bg: #493b18;
+                --warning-text: #f4d583;
+                --danger-bg: #49252b;
+                --danger-text: #ffb6bb;
+                --code-bg: #0e141b;
+                --mono: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
             }
 
             [data-theme="light"] {
-                --background-color: #f5f7fa;
+                color-scheme: light;
+                --k8s-blue: #2457b8;
+                --background-color: #f5f7f9;
                 --card-bg: #ffffff;
-                --text-primary: #1a1f2e;
-                --text-secondary: #64748b;
-                --border-color: rgba(0, 0, 0, 0.1);
-                --glass-bg: rgba(255, 255, 255, 0.8);
-                --glass-border: rgba(0, 0, 0, 0.1);
+                --text-primary: #182735;
+                --text-secondary: #506273;
+                --border-color: #c6d0d9;
+                --surface-hover: #eaf0f5;
+                --selection-bg: #e1ebfc;
+                --success-bg: #e0f2e8;
+                --success-text: #165538;
+                --warning-bg: #fff1c7;
+                --warning-text: #735000;
+                --danger-bg: #fce7e9;
+                --danger-text: #9b2330;
+                --code-bg: #eff3f7;
             }
 
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-
+            * { box-sizing: border-box; }
+            html { scrollbar-gutter: stable; }
             body {
-                background: var(--background-color);
-                background-image: 
-                    radial-gradient(circle at 20% 50%, rgba(50, 108, 229, 0.15) 0%, transparent 50%),
-                    radial-gradient(circle at 80% 80%, rgba(77, 125, 234, 0.15) 0%, transparent 50%);
-                background-attachment: fixed;
-                color: var(--text-primary);
-                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                margin: 0;
+                min-height: 100vh;
                 display: flex;
                 flex-direction: column;
-                min-height: 100vh;
-                transition: background 0.3s ease, color 0.3s ease;
+                background: var(--background-color);
+                color: var(--text-primary);
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                line-height: 1.5;
             }
-
-            .k8s-banner {
-                background: linear-gradient(135deg, var(--k8s-blue) 0%, var(--k8s-light-blue) 50%, var(--k8s-dark-blue) 100%);
-                color: white;
-                padding: 2rem 0;
-                box-shadow: 0 8px 32px rgba(50, 108, 229, 0.3);
-                position: relative;
-                overflow: hidden;
+            a { color: var(--k8s-blue); text-underline-offset: 3px; }
+            a, .nav-link { transition: none; }
+            button, input, select { font: inherit; }
+            :where(button, a, input, select, [tabindex]:not(.modal)):focus-visible {
+                outline: 3px solid var(--k8s-blue);
+                outline-offset: 3px;
+                box-shadow: none;
             }
-
-            .k8s-banner::before {
-                content: '';
-                position: absolute;
-                top: -50%;
-                right: -10%;
-                width: 500px;
-                height: 500px;
-                background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-                animation: float 8s ease-in-out infinite;
-            }
-
-            @keyframes float {
-                0%, 100% { transform: translate(0, 0) rotate(0deg); }
-                50% { transform: translate(-30px, 30px) rotate(180deg); }
-            }
-
-            .k8s-logo {
-                width: 60px;
-                height: 60px;
-                margin-right: 20px;
-                filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
-                animation: spin 20s linear infinite;
-            }
-
-            @keyframes spin {
-                from { transform: rotate(0deg); }
-                to { transform: rotate(360deg); }
-            }
-
-            .banner-content {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                position: relative;
-                z-index: 1;
-                flex-wrap: wrap;
-                gap: 1rem;
-            }
-
-            .banner-content h1 {
-                font-weight: 700;
-                font-size: 2rem;
-                letter-spacing: -0.5px;
-            }
-
-            .theme-toggle {
-                background: rgba(255, 255, 255, 0.2);
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                backdrop-filter: blur(10px);
-                color: white;
-                padding: 0.5rem 1rem;
-                border-radius: 50px;
-                cursor: pointer;
-                transition: all 0.3s ease;
-                margin-left: 0.5rem;
-            }
-
-            .theme-toggle:hover {
-                background: rgba(255, 255, 255, 0.3);
-                transform: scale(1.05);
-            }
-
-            .main-content {
-                flex: 1;
-                padding-bottom: 2rem;
-            }
-
-            .stats-bar {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 1rem;
-                margin-bottom: 2rem;
-            }
-
-            .stat-card {
-                background: var(--glass-bg);
-                backdrop-filter: blur(10px);
-                border: 1px solid var(--glass-border);
-                border-radius: 16px;
-                padding: 1.5rem;
-                text-align: center;
-                transition: all 0.3s ease;
-            }
-
-            .stat-card:hover {
-                transform: translateY(-5px);
-                box-shadow: 0 12px 24px rgba(50, 108, 229, 0.2);
-            }
-
-            .stat-card h3 {
-                font-size: 2rem;
-                font-weight: 700;
-                margin-bottom: 0.5rem;
-                background: linear-gradient(135deg, var(--k8s-blue), var(--k8s-light-blue));
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-            }
-
-            .stat-card p {
-                color: var(--text-secondary);
-                font-size: 0.875rem;
-                font-weight: 500;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-            }
-
-            .card {
-                background: var(--card-bg);
+            ::selection { background: var(--selection-bg); color: var(--text-primary); }
+            .skip-link { position: absolute; left: 1rem; top: -5rem; z-index: 1100; padding: .75rem; background: var(--card-bg); }
+            .skip-link:focus { top: .5rem; }
+            .k8s-banner { padding: 1rem 0; border-top: 3px solid #326ce5; border-bottom: 1px solid var(--border-color); }
+            .banner-content { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem 1.5rem; }
+            .banner-content > div { min-width: 0; }
+            .banner-content h1 { font-size: 1.125rem; font-weight: 650; line-height: 1.4; }
+            .k8s-logo { width: 32px; height: 32px; margin-right: .75rem; flex-shrink: 0; }
+            .theme-toggle, .btn, .view-toggle-btn {
+                --bs-btn-color: var(--text-primary);
+                --bs-btn-hover-color: var(--text-primary);
+                --bs-btn-hover-bg: var(--surface-hover);
+                --bs-btn-hover-border-color: var(--text-secondary);
+                --bs-btn-active-color: var(--text-primary);
+                --bs-btn-active-bg: var(--selection-bg);
+                --bs-btn-active-border-color: var(--k8s-blue);
+                min-height: 44px;
+                border-radius: 4px;
                 border: 1px solid var(--border-color);
+                padding: .5rem .75rem;
+                font-size: .875rem;
+                font-weight: 550;
+                background: transparent;
                 color: var(--text-primary);
-                border-radius: 16px;
-                transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                cursor: pointer;
-                position: relative;
-                overflow: hidden;
-            }
-
-            .card-text p,
-            .card-text strong {
-                color: var(--text-primary);
-            }
-
-            .card .text-secondary {
-                color: var(--text-secondary) !important;
-            }
-
-            .card::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: -100%;
-                width: 100%;
-                height: 100%;
-                background: linear-gradient(90deg, transparent, rgba(50, 108, 229, 0.1), transparent);
-                transition: left 0.5s ease;
-            }
-
-            .card:hover::before {
-                left: 100%;
-            }
-
-            .card:hover {
-                transform: translateY(-8px) scale(1.02);
-                box-shadow: 0 20px 40px rgba(50, 108, 229, 0.3);
-                border-color: var(--k8s-blue);
-            }
-
-            .card-body {
-                position: relative;
-                z-index: 1;
-            }
-
-            .card-title {
-                font-weight: 600;
-                font-size: 1.25rem;
-                margin-bottom: 1rem;
-                color: var(--text-primary);
-            }
-
-            .status-badge {
-                padding: 0.5rem 1rem;
-                border-radius: 50px;
-                font-size: 0.75rem;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-                animation: pulse 2s ease-in-out infinite;
-            }
-
-            @keyframes pulse {
-                0%, 100% { opacity: 1; }
-                50% { opacity: 0.8; }
-            }
-
-            .filter-section {
-                background: var(--glass-bg);
-                backdrop-filter: blur(20px);
-                border: 1px solid var(--glass-border);
-                border-radius: 20px;
-                padding: 2rem;
-                margin-bottom: 2rem;
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            }
-
-            .form-label {
-                color: var(--text-primary);
-                font-weight: 600;
-                font-size: 0.875rem;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-                margin-bottom: 0.5rem;
-            }
-
-            .form-select, .form-control {
-                background: var(--card-bg);
-                border: 1px solid var(--border-color);
-                color: var(--text-primary);
-                border-radius: 12px;
-                padding: 0.75rem 1rem;
-                transition: all 0.3s ease;
-                font-size: 0.95rem;
-            }
-
-            .form-select:focus, .form-control:focus {
-                border-color: var(--k8s-blue);
-                box-shadow: 0 0 0 3px rgba(50, 108, 229, 0.1);
-                background: var(--card-bg);
-                color: var(--text-primary);
-            }
-
-            .form-select option {
-                background: var(--card-bg);
-                color: var(--text-primary);
-            }
-
-            .btn {
-                border-radius: 12px;
-                padding: 0.75rem 1.5rem;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-                transition: all 0.3s ease;
-                border: none;
-                font-size: 0.875rem;
-            }
-
-            .btn-primary {
-                background: linear-gradient(135deg, var(--k8s-blue), var(--k8s-light-blue));
-                color: white;
-                box-shadow: 0 4px 15px rgba(50, 108, 229, 0.4);
-            }
-
-            .btn-primary:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 20px rgba(50, 108, 229, 0.5);
-            }
-
-            .btn-secondary {
-                background: var(--card-bg);
-                color: var(--text-primary);
-                border: 1px solid var(--border-color);
-            }
-
-            .btn-secondary:hover {
-                background: var(--glass-bg);
-                transform: translateY(-2px);
-            }
-
-            .btn-outline-light {
-                border: 2px solid rgba(255, 255, 255, 0.5);
-                color: white;
-                background: rgba(255, 255, 255, 0.1);
-                backdrop-filter: blur(10px);
-            }
-
-            .btn-outline-light:hover {
-                background: rgba(255, 255, 255, 0.2);
-                border-color: white;
-            }
-
-            .filter-buttons .d-flex {
-                align-items: stretch;
-            }
-
-            .filter-buttons .btn {
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
+                gap: .25rem;
+                cursor: pointer;
+                transition: none;
             }
-
-            .view-toggle-group {
-                display: inline-flex;
-                background: var(--glass-bg);
-                border: 1px solid var(--glass-border);
-                border-radius: 14px;
-                padding: 0.35rem;
-                backdrop-filter: blur(10px);
-                margin-bottom: 1rem;
-            }
-
-            .view-toggle-btn {
-                border: none;
-                background: transparent;
-                color: var(--text-secondary);
-                padding: 0.6rem 1.2rem;
-                border-radius: 10px;
-                font-weight: 600;
-                transition: all 0.2s ease;
-            }
-
-            .view-toggle-btn.active {
-                color: white;
-                background: linear-gradient(135deg, var(--k8s-blue), var(--k8s-light-blue));
-                box-shadow: 0 4px 15px rgba(50, 108, 229, 0.35);
-            }
-
-            .resource-view {
-                display: none;
-            }
-
-            .resource-view.active {
-                display: block;
-            }
-
-            .connection-status {
-                position: fixed;
-                bottom: 30px;
-                right: 30px;
-                z-index: 1000;
-                animation: slideIn 0.5s ease;
-            }
-
-            @keyframes slideIn {
-                from {
-                    transform: translateX(100px);
-                    opacity: 0;
-                }
-                to {
-                    transform: translateX(0);
-                    opacity: 1;
-                }
-            }
-
-            .badge {
-                padding: 0.75rem 1.5rem;
-                border-radius: 50px;
-                font-weight: 600;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-                backdrop-filter: blur(10px);
-            }
-
-            .footer {
-                background: var(--glass-bg);
-                backdrop-filter: blur(20px);
-                border-top: 1px solid var(--glass-border);
-                padding: 1.5rem 0;
-                margin-top: 2rem;
-            }
-
-            .modal-content {
-                background: var(--card-bg);
+            .theme-toggle { min-width: 44px; }
+            .btn:hover, .theme-toggle:hover, .view-toggle-btn:hover { color: var(--text-primary); background: var(--surface-hover); border-color: var(--text-secondary); }
+            .btn:active, .theme-toggle:active, .view-toggle-btn:active { background: var(--selection-bg); }
+            .btn:disabled { opacity: .6; cursor: default; }
+            .btn-primary, .view-toggle-btn.active { color: var(--k8s-blue); background: var(--selection-bg); border-color: var(--k8s-blue); }
+            .btn-warning { color: var(--warning-text); background: var(--warning-bg); }
+            .main-content { flex: 1; padding-bottom: 1.5rem; }
+            .connection-status { padding-top: .5rem; text-align: right; }
+            .badge { border-radius: 3px; padding: .25rem .5rem; font-weight: 550; line-height: 1.4; font-size: .75rem; }
+            .bg-success { color: var(--success-text) !important; background: var(--success-bg) !important; }
+            .bg-warning { color: var(--warning-text) !important; background: var(--warning-bg) !important; }
+            .bg-danger { color: var(--danger-text) !important; background: var(--danger-bg) !important; }
+            .stats-bar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1rem; padding: 0 0 1rem; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border-color); }
+            .stat-card { min-width: 0; }
+            .stat-card h3 { font: 600 1.25rem/1.3 var(--mono); font-variant-numeric: tabular-nums; margin: 0 0 .25rem; }
+            .stat-card p { font-size: .75rem; color: var(--text-secondary); margin: 0; overflow-wrap: anywhere; }
+            .filter-section { margin-bottom: 1.5rem; }
+            .view-toggle-group { display: inline-flex; gap: .5rem; flex-wrap: wrap; }
+            #viewTitle { font-size: .875rem; }
+            .filter-section .row > * { min-width: 0; }
+            .form-label { margin-bottom: .375rem; font-size: .875rem; font-weight: 550; }
+            .form-select, .form-control {
+                min-height: 44px;
+                font-size: 1rem;
                 border: 1px solid var(--border-color);
-                border-radius: 20px;
+                border-radius: 4px;
+                background-color: var(--card-bg);
                 color: var(--text-primary);
+                padding: .5rem .625rem;
             }
-
-            .modal-header {
-                border-bottom: 1px solid var(--border-color);
-                background: var(--glass-bg);
-                border-radius: 20px 20px 0 0;
+            .form-select { padding-right: 2rem; }
+            [data-theme="dark"] .form-select { --bs-form-select-bg-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23a7b6c5' stroke-width='2'%3E%3Cpath d='m2 5 6 6 6-6'/%3E%3C/svg%3E"); }
+            .form-control::placeholder { color: var(--text-secondary); opacity: 1; }
+            .form-select:focus, .form-control:focus { color: var(--text-primary); background-color: var(--card-bg); border-color: var(--k8s-blue); box-shadow: none; }
+            .filter-buttons .btn { white-space: nowrap; }
+            .filter-buttons .d-flex { flex-wrap: wrap; }
+            .resource-view { display: none; }
+            .resource-view.active { display: block; }
+            .resource-view h2 { font-size: 1rem; font-weight: 650; }
+            .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); cursor: pointer; }
+            .card:hover { border-color: var(--text-secondary); }
+            .card:focus-within { border-color: var(--k8s-blue); }
+            .card-body { padding: 1rem; display: flex; flex-direction: column; }
+            .card-title { font-size: .9375rem; font-family: var(--mono); line-height: 1.5; gap: .5rem; margin-bottom: .75rem; flex-wrap: wrap; }
+            .card-title > span:first-child { overflow-wrap: anywhere; min-width: 0; }
+            .status-badge { font-family: system-ui, sans-serif; flex-shrink: 0; }
+            .resource-content { flex: 1; }
+            .card-text { font-size: .875rem; flex: 1; }
+            .card-text p { overflow-wrap: anywhere; }
+            .card-text strong { font-weight: 550; }
+            .card-text p > i { display: none; }
+            .card-text span, .card-text a { font-family: var(--mono); font-size: .8125rem; }
+            .card .text-secondary, .text-secondary { color: var(--text-secondary) !important; }
+            .resource-action { align-self: flex-start; margin-top: 1rem; }
+            .alert { border: 1px solid var(--border-color); border-radius: 4px; background: var(--card-bg); color: var(--text-secondary); padding: 1rem; }
+            .connection-notice { color: var(--warning-text); background: var(--warning-bg); }
+            #searchNotice { margin-top: .75rem; }
+            .footer { border-top: 1px solid var(--border-color); padding: 1rem 0; font-size: .8125rem; }
+            .footer a { color: var(--text-secondary); }
+            .modal-content { border: 1px solid var(--border-color); border-radius: 6px; background: var(--card-bg); color: var(--text-primary); }
+            .modal-header { border-color: var(--border-color); gap: 1rem; align-items: flex-start; }
+            .modal-title { font: 600 1rem/1.5 var(--mono); overflow-wrap: anywhere; }
+            .modal-body { padding: 1rem; }
+            .modal .table { --bs-table-bg: transparent; --bs-table-color: var(--text-primary); --bs-table-border-color: var(--border-color); --bs-table-striped-color: var(--text-primary); --bs-table-striped-bg: transparent; --bs-table-hover-color: var(--text-primary); --bs-table-hover-bg: var(--surface-hover); }
+            .modal .table th { font-weight: 550; color: var(--text-secondary); width: 9rem; }
+            .modal .table td { font-family: var(--mono); font-size: .875rem; overflow-wrap: anywhere; }
+            .nav-tabs { border-color: var(--border-color); gap: .5rem; }
+            .nav-tabs .nav-link { color: var(--text-secondary); border: 0; border-bottom: 2px solid transparent; border-radius: 0; min-height: 44px; }
+            .nav-tabs .nav-link.active { color: var(--k8s-blue); background: transparent; border-color: var(--k8s-blue); }
+            pre[class*="language-"] { max-height: 60vh; overflow: auto; background: var(--code-bg); border: 1px solid var(--border-color); border-radius: 4px; margin: 0; text-shadow: none; }
+            code[class*="language-"], pre[class*="language-"] { color: var(--text-primary); text-shadow: none; font: .875rem/1.6 var(--mono); }
+            .token.atrule, .token.key, .token.important { color: var(--k8s-blue); }
+            .token.string, .token.scalar, .token.boolean, .token.number { color: var(--success-text); }
+            .token.punctuation, .token.comment { color: var(--text-secondary); }
+            .line-numbers-rows { border-color: var(--border-color); }
+            .line-numbers-rows > span::before { color: var(--text-secondary); }
+            .loading-card { cursor: default; }
+            [hidden] { display: none !important; }
+            @media (max-width: 991px) { .stats-bar { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+            @media (max-width: 575px) {
+                .stats-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem 1rem; }
+                .stat-card { display: flex; align-items: baseline; gap: .5rem; }
+                .stat-card h3 { font-size: 1.125rem; margin: 0; }
+                .banner-content h1 { font-size: 1rem; }
+                .filter-section > .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: 1rem; margin: 0; }
+                .filter-section > .row > div { width: auto; max-width: 100%; padding: 0; margin: 0; }
+                .filter-buttons { grid-column: 1 / -1; }
+                .filter-buttons .btn { flex: 1; }
+                #viewTitle { display: block; max-width: 100%; overflow-wrap: anywhere; }
+                .modal .table th { width: auto; }
+                .modal .table td { min-width: 0; }
+                .modal .table tr { display: flex; flex-direction: column; }
+                .modal .table th { border-bottom: 0; padding-bottom: 0; }
             }
-
-            .modal-body {
-                padding: 2rem;
-            }
-
-            .modal .table {
-                --bs-table-bg: transparent;
-                --bs-table-color: var(--text-primary);
-                --bs-table-border-color: var(--border-color);
-                margin-bottom: 0;
-                color: var(--text-primary);
-            }
-
-            .modal .table > :not(caption) > * > * {
-                background-color: transparent;
-                color: var(--text-primary);
-                border-bottom-color: var(--border-color);
-            }
-
-            .modal .table th {
-                color: var(--text-secondary);
-            }
-
-            .modal .table a {
-                color: var(--k8s-blue);
-            }
-
-            .nav-tabs {
-                border-bottom: 2px solid var(--border-color);
-            }
-
-            .nav-tabs .nav-link {
-                color: var(--text-secondary);
-                border: none;
-                border-bottom: 3px solid transparent;
-                padding: 1rem 1.5rem;
-                transition: all 0.3s ease;
-            }
-
-            .nav-tabs .nav-link:hover {
-                color: var(--k8s-blue);
-                border-bottom-color: var(--k8s-blue);
-            }
-
-            .nav-tabs .nav-link.active {
-                color: var(--k8s-blue);
-                background: transparent;
-                border-bottom-color: var(--k8s-blue);
-            }
-
-            /* Prism.js custom styling */
-            pre[class*="language-"] {
-                max-height: 500px;
-                overflow-y: auto;
-                margin-top: 0;
-                margin-bottom: 0;
-                padding: 1.5rem;
-                border-radius: 12px;
-                background: var(--background-color) !important;
-                border: 1px solid var(--border-color);
-            }
-
-            /* Loading animation */
-            @keyframes shimmer {
-                0% { background-position: -1000px 0; }
-                100% { background-position: 1000px 0; }
-            }
-
-            .loading-card {
-                background: linear-gradient(90deg, var(--card-bg) 0%, var(--glass-bg) 50%, var(--card-bg) 100%);
-                background-size: 1000px 100%;
-                animation: shimmer 2s infinite;
-            }
-
-            /* Responsive adjustments */
-            @media (max-width: 768px) {
-                .banner-content h1 {
-                    font-size: 1.5rem;
-                }
-
-                .k8s-logo {
-                    width: 40px;
-                    height: 40px;
-                }
-
-                .filter-section {
-                    padding: 1rem;
-                }
-
-                .stat-card h3 {
-                    font-size: 1.5rem;
-                }
-
-                .filter-buttons {
-                    width: 100%;
-                }
-
-                .filter-buttons > * {
-                    flex: 1;
-                    min-width: 100%;
-                }
-
-                .connection-status {
-                    bottom: 15px;
-                    right: 15px;
-                }
-            }
-
-            /* Smooth scrollbar */
-            ::-webkit-scrollbar {
-                width: 10px;
-                height: 10px;
-            }
-
-            ::-webkit-scrollbar-track {
-                background: var(--background-color);
-            }
-
-            ::-webkit-scrollbar-thumb {
-                background: var(--k8s-blue);
-                border-radius: 5px;
-            }
-
-            ::-webkit-scrollbar-thumb:hover {
-                background: var(--k8s-light-blue);
-            }
-
-            .alert {
-                border-radius: 12px;
-                border: 1px solid var(--border-color);
-                background: var(--glass-bg);
-                backdrop-filter: blur(10px);
-                color: var(--text-primary);
-            }
-
-            .table {
-                color: var(--text-primary);
-            }
-
-            .table th {
-                color: var(--text-secondary);
-                font-weight: 600;
-                text-transform: uppercase;
-                font-size: 0.875rem;
-                letter-spacing: 0.5px;
+            @media (prefers-reduced-motion: reduce) {
+                *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
             }
         </style>
 </head>
 <body>
+    <a class="skip-link" href="#mainContent">Skip to resources</a>
     <!-- Kubernetes-themed Banner -->
     <div class="k8s-banner">
         <div class="container">
@@ -582,12 +214,12 @@
                 <div class="d-flex align-items-center">
                     <!-- Local Kubernetes Logo -->
                     <img src="/static/kubernetes-logo.svg"
-                         alt="Kubernetes Logo"
+                         alt="" width="32" height="32"
                          class="k8s-logo">
-                    <h1 class="mb-0 text-white">Kubernetes Gateway & Ingress Dashboard</h1>
+                    <h1 class="mb-0">Kubernetes Gateway & Ingress Dashboard</h1>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <button id="themeToggle" class="theme-toggle">
+                    <button id="themeToggle" class="theme-toggle" type="button" aria-label="Switch to light theme">
                         <i class="bi bi-moon-stars-fill"></i>
                     </button>
                     <a href="https://github.com/michaeltrip/ingress-dashboard"
@@ -602,16 +234,16 @@
     </div>
 
     <!-- Connection Status -->
-    <div id="connectionStatus" class="connection-status">
+    <div id="connectionStatus" class="container connection-status" role="status">
         <span id="connectionBadge" class="badge bg-warning">
             <i class="bi bi-wifi-off me-2"></i>Connecting...
         </span>
     </div>
 
     <!-- Main Content -->
-    <div class="container main-content mt-4">
+    <main class="container main-content mt-3" id="mainContent" tabindex="-1">
         <!-- Stats Bar -->
-        <div class="stats-bar" id="statsBar">
+        <div class="stats-bar" id="statsBar" aria-label="Resource totals before filtering">
             <div class="stat-card">
                 <h3 id="totalIngresses">0</h3>
                 <p>Total Ingresses</p>
@@ -630,15 +262,15 @@
             </div>
             <div class="stat-card">
                 <h3 id="activeResources">0</h3>
-                <p>Active (View)</p>
+                <p>Active in view</p>
             </div>
             <div class="stat-card">
                 <h3 id="pendingResources">0</h3>
-                <p>Pending (View)</p>
+                <p>Pending in view</p>
             </div>
             <div class="stat-card">
                 <h3 id="namespaceCount">0</h3>
-                <p>Namespaces (View)</p>
+                <p>Namespaces in view</p>
             </div>
         </div>
 
@@ -646,10 +278,10 @@
         <div class="filter-section mb-4">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
                 <div class="view-toggle-group" role="group" aria-label="Resource view selector">
-                    <button id="viewIngressBtn" class="view-toggle-btn active" type="button">
+                    <button id="viewIngressBtn" class="view-toggle-btn active" type="button" aria-pressed="true">
                         <i class="bi bi-diagram-3 me-2"></i>Ingress
                     </button>
-                    <button id="viewGatewayBtn" class="view-toggle-btn" type="button">
+                    <button id="viewGatewayBtn" class="view-toggle-btn" type="button" aria-pressed="false">
                         <i class="bi bi-signpost-2 me-2"></i>Gateway
                     </button>
                 </div>
@@ -658,44 +290,44 @@
                 </div>
             </div>
             <div class="row g-3 align-items-end">
-                <div class="col-lg-2 col-md-4 col-sm-6">
-                    <label class="form-label">Namespace</label>
+                <div class="col-6 col-lg-2 col-md-4">
+                    <label class="form-label" for="namespaceFilter">Namespace</label>
                     <select id="namespaceFilter" class="form-select">
                         <option value="">All Namespaces</option>
                     </select>
                 </div>
-                <div class="col-lg-2 col-md-4 col-sm-6">
-                    <label class="form-label" id="classFilterLabel">Ingress Class</label>
+                <div class="col-6 col-lg-2 col-md-4">
+                    <label class="form-label" id="classFilterLabel" for="ingressClassFilter">Ingress Class</label>
                     <select id="ingressClassFilter" class="form-select">
                         <option value="">All Classes</option>
                     </select>
                 </div>
-                <div class="col-lg-2 col-md-4 col-sm-6">
-                    <label class="form-label">Status</label>
+                <div class="col-4 col-lg-2 col-md-4">
+                    <label class="form-label" for="statusFilter">Status</label>
                     <select id="statusFilter" class="form-select">
                         <option value="">All Statuses</option>
                         <option value="Active">Active</option>
                         <option value="Pending">Pending</option>
                     </select>
                 </div>
-                <div class="col-lg-3 col-md-6 col-sm-12">
-                    <label class="form-label">Search</label>
+                <div class="col-8 col-lg-3 col-md-6">
+                    <label class="form-label" for="searchInput">Search</label>
                     <div class="input-group">
-                        <input type="text" id="searchInput" class="form-control" placeholder="Search resources...">
-                        <button id="searchBtn" class="btn btn-secondary" type="button" title="Search within currently displayed tiles">
+                        <input type="text" id="searchInput" class="form-control" placeholder="Search…">
+                        <button id="searchBtn" class="btn btn-secondary" type="button" title="Search within currently displayed resources" aria-label="Search resources">
                             <i class="bi bi-search"></i>
                         </button>
                     </div>
                 </div>
-                <div class="col-lg-3 col-md-6 col-sm-12 filter-buttons">
+                <div class="col-12 col-xl-3 col-lg-12 col-md-6 filter-buttons">
                     <div class="d-flex gap-2 w-100">
                         <button id="resetFiltersBtn" class="btn btn-secondary flex-grow-1" title="Clear all selected filters and search text">
-                            <i class="bi bi-x-circle me-2"></i>Clear All
+                            <i class="bi bi-x-circle me-2"></i>Clear all
                         </button>
-                        <button id="pauseRefreshBtn" class="btn btn-secondary flex-grow-1" title="Pause automatic refresh">
+                        <button id="pauseRefreshBtn" class="btn btn-secondary flex-grow-1" aria-pressed="false" title="Pause automatic refresh">
                             <i class="bi bi-pause-fill me-2"></i>Pause
                         </button>
-                        <button id="exportBtn" class="btn btn-secondary" title="Export currently visible tiles to CSV">
+                        <button id="exportBtn" class="btn btn-secondary" title="Export currently visible resources to CSV" aria-label="Export visible resources to CSV">
                             <i class="bi bi-download"></i>
                         </button>
                     </div>
@@ -703,9 +335,12 @@
             </div>
         </div>
 
+        <div id="connectionNotice" class="alert connection-notice" role="status" hidden></div>
+        <p id="searchNotice" class="alert" role="status" hidden>No resources match your search. Try another name or clear the search.</p>
+
         <div id="ingressView" class="resource-view active">
-            <h4 class="mb-3">Ingresses</h4>
-            <div id="ingressContainer" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-5">
+            <h2 class="mb-3">Ingresses</h2>
+            <div id="ingressContainer" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3 mb-4">
                 <div class="col">
                     <div class="card loading-card h-100">
                         <div class="card-body">
@@ -722,16 +357,16 @@
         </div>
 
         <div id="gatewayView" class="resource-view">
-            <h4 class="mb-3">HTTPRoutes</h4>
-            <div id="httprouteContainer" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-5"></div>
+            <h2 class="mb-3">HTTPRoutes</h2>
+            <div id="httprouteContainer" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3 mb-4"></div>
 
-            <h4 class="mb-3">Gateways</h4>
-            <div id="gatewayContainer" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-5"></div>
+            <h2 class="mb-3">Gateways</h2>
+            <div id="gatewayContainer" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3 mb-4"></div>
 
-            <h4 class="mb-3">GatewayClasses</h4>
-            <div id="gatewayclassContainer" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4"></div>
+            <h2 class="mb-3">GatewayClasses</h2>
+            <div id="gatewayclassContainer" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3"></div>
         </div>
-    </div>
+    </main>
 
     <!-- Footer -->
     <footer class="footer mt-4">
@@ -743,10 +378,10 @@
                    <i class="bi bi-github me-2"></i>
                    Kubernetes Ingress Dashboard
                    <span class="small">{{ app_version }}</span>
-                   {% if git_commit != 'unknown' %}
-                   <span class="small text-muted">(<a href="https://github.com/michaeltrip/ingress-dashboard/commit/{{ git_commit }}" target="_blank" style="color: var(--text-secondary);">{{ git_commit }}</a>)</span>
-                   {% endif %}
                </a>
+                   {% if git_commit != 'unknown' %}
+                   <span class="small">(<a href="https://github.com/michaeltrip/ingress-dashboard/commit/{{ git_commit }}" target="_blank" style="color: var(--text-secondary);">{{ git_commit }}</a>)</span>
+                   {% endif %}
            </span>
         </div>
     </footer>
@@ -770,6 +405,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     function updateThemeIcon(theme) {
+        themeToggle.setAttribute('aria-label', `Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`);
         const icon = themeToggle.querySelector('i');
         if (theme === 'dark') {
             icon.className = 'bi bi-sun-fill';
@@ -809,6 +445,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('searchInput');
     const searchBtn = document.getElementById('searchBtn');
     const exportBtn = document.getElementById('exportBtn');
+    const connectionNotice = document.getElementById('connectionNotice');
+    const searchNotice = document.getElementById('searchNotice');
+    let appliedSearchTerm = '';
     let refreshPaused = false;
     const FILTER_STORAGE_KEY = 'ingressDashboardFilters';
     let allIngresses = [];
@@ -874,25 +513,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Search functionality
     function performSearch() {
-        const searchTerm = searchInput.value.toLowerCase().trim();
+        appliedSearchTerm = searchInput.value.toLowerCase().trim();
+        applySearch();
+    }
+
+    function applySearch() {
         const scope = selectedView === 'ingress' ? ingressView : gatewayView;
-        const cards = scope.querySelectorAll('.card');
+        const cards = scope.querySelectorAll('.card[data-resource-data]');
+        let visibleCount = 0;
 
         cards.forEach(card => {
-            const cardText = card.textContent.toLowerCase();
-            if (cardText.includes(searchTerm)) {
-                card.closest('.col').style.display = '';
-            } else {
-                card.closest('.col').style.display = 'none';
-            }
+            const matches = card.querySelector('.resource-content').textContent.toLowerCase().includes(appliedSearchTerm);
+            card.closest('.col').hidden = !matches;
+            if (matches) visibleCount++;
         });
+        searchNotice.hidden = !appliedSearchTerm || cards.length === 0 || visibleCount > 0;
     }
 
     // Search button click event
     searchBtn.addEventListener('click', performSearch);
 
     // Search input enter key event
-    searchInput.addEventListener('keypress', (e) => {
+    searchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             performSearch();
         }
@@ -901,8 +543,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Export functionality
     exportBtn.addEventListener('click', () => {
         const scope = selectedView === 'ingress' ? ingressView : gatewayView;
-        const visibleCards = Array.from(scope.querySelectorAll('.card:not([style*="display: none"])'))
-            .filter(card => card.dataset.resourceData);
+        const visibleCards = Array.from(scope.querySelectorAll('.card[data-resource-data]'))
+            .filter(card => !card.closest('.col').hidden);
 
         const resources = visibleCards.map(card => JSON.parse(card.dataset.resourceData));
         const csvContent = [
@@ -927,6 +569,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
 
     // Connection handling
@@ -934,7 +577,8 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Connected to WebSocket');
         connectionBadge.classList.remove('bg-warning', 'bg-danger');
         connectionBadge.classList.add('bg-success');
-        connectionBadge.innerHTML = '<i class="bi bi-wifi me-2"></i>Connected';
+        connectionBadge.innerHTML = '<i class="bi bi-wifi me-2" aria-hidden="true"></i>Live updates connected';
+        connectionNotice.hidden = true;
     });
 
     socket.on('connect_error', (error) => {
@@ -942,6 +586,9 @@ document.addEventListener('DOMContentLoaded', function() {
         connectionBadge.classList.remove('bg-success', 'bg-warning');
         connectionBadge.classList.add('bg-danger');
         connectionBadge.innerHTML = '<i class="bi bi-exclamation-triangle me-2"></i>Connection Error';
+        connectionNotice.hidden = false;
+        connectionNotice.textContent = 'Cannot connect to live updates. Retrying automatically. Any displayed resources may be out of date.';
+        removeInitialLoading();
     });
 
     socket.on('disconnect', (reason) => {
@@ -949,6 +596,9 @@ document.addEventListener('DOMContentLoaded', function() {
         connectionBadge.classList.remove('bg-success', 'bg-danger');
         connectionBadge.classList.add('bg-warning');
         connectionBadge.innerHTML = '<i class="bi bi-wifi-off me-2"></i>Disconnected';
+        connectionNotice.hidden = false;
+        connectionNotice.textContent = 'Live updates disconnected. Reconnecting automatically. Any displayed resources may be out of date.';
+        removeInitialLoading();
 
         // Attempt manual reconnection
         if (reason !== 'io server disconnect') {
@@ -956,9 +606,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    function removeInitialLoading() {
+        const loadingCard = ingressContainer.querySelector('.loading-card');
+        if (loadingCard) loadingCard.closest('.col').remove();
+    }
+
     // Pause/resume refresh toggle
     pauseRefreshBtn.addEventListener('click', () => {
         refreshPaused = !refreshPaused;
+        pauseRefreshBtn.setAttribute('aria-pressed', String(refreshPaused));
         if (refreshPaused) {
             pauseRefreshBtn.title = 'Resume automatic refresh';
             pauseRefreshBtn.innerHTML = '<i class="bi bi-play-fill me-2"></i>Resume';
@@ -1012,6 +668,7 @@ document.addEventListener('DOMContentLoaded', function() {
         syncControlsFromActiveFilters();
         isProgrammaticFilterUpdate = false;
         searchInput.value = ''; // Clear search input
+        appliedSearchTerm = '';
 
         console.log('Resetting filters');
         applyCurrentFilters();
@@ -1061,6 +718,8 @@ document.addEventListener('DOMContentLoaded', function() {
         gatewayView.classList.toggle('active', !ingressActive);
         viewIngressBtn.classList.toggle('active', ingressActive);
         viewGatewayBtn.classList.toggle('active', !ingressActive);
+        viewIngressBtn.setAttribute('aria-pressed', String(ingressActive));
+        viewGatewayBtn.setAttribute('aria-pressed', String(!ingressActive));
         viewTitle.textContent = ingressActive ? 'Viewing: Ingress' : 'Viewing: Gateway API';
         classFilterLabel.textContent = ingressActive ? 'Ingress Class' : 'Gateway Class';
     }
@@ -1167,6 +826,7 @@ document.addEventListener('DOMContentLoaded', function() {
             updateHTTPRouteContainer([]);
             updateGatewayContainer([]);
             updateGatewayClassContainer([]);
+            applySearch();
             return;
         }
 
@@ -1181,13 +841,12 @@ document.addEventListener('DOMContentLoaded', function() {
         updateHTTPRouteContainer(filteredHTTPRoutes);
         updateGatewayContainer(filteredGateways);
         updateGatewayClassContainer(filteredGatewayClasses);
+        applySearch();
     }
 
     function createResourceCard(resource, index, detailRenderer, detailsHtml, statusValue) {
         const cardColumn = document.createElement('div');
         cardColumn.className = 'col';
-        cardColumn.style.animation = `fadeInUp 0.5s ease forwards ${index * 0.05}s`;
-        cardColumn.style.opacity = '0';
 
         const card = document.createElement('div');
         card.className = 'card h-100';
@@ -1198,23 +857,67 @@ document.addEventListener('DOMContentLoaded', function() {
 
         card.innerHTML = `
             <div class="card-body">
-                <h5 class="card-title d-flex justify-content-between align-items-start">
-                    <span class="flex-grow-1">${resource.name}</span>
-                    <span class="badge ${statusClass} status-badge ms-2">
+                <div class="resource-content">
+                <h3 class="card-title d-flex justify-content-between align-items-start">
+                    <span class="flex-grow-1">${escapeHtml(String(resource.name))}</span>
+                    <span class="badge ${statusClass} status-badge">
                         <i class="bi bi-${statusIcon} me-1"></i>${statusValue}
                     </span>
-                </h5>
-                <hr style="border-color: var(--border-color); opacity: 0.3;">
+                </h3>
                 <div class="card-text">${detailsHtml}</div>
+                </div>
+                <button type="button" class="btn resource-action">View details<span class="visually-hidden"> for ${escapeHtml(String(resource.name))}</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
             </div>
         `;
 
-        card.addEventListener('click', () => detailRenderer(resource));
+        card.querySelector('.resource-action').addEventListener('click', () => detailRenderer(resource));
+        card.addEventListener('click', (event) => {
+            if (!event.target.closest('a, button')) {
+                card.querySelector('.resource-action').focus({ preventScroll: true });
+                detailRenderer(resource);
+            }
+        });
         cardColumn.appendChild(card);
         return cardColumn;
     }
 
+    function reconcileCards(container, columns) {
+        const existing = new Map();
+        const keyFor = card => {
+            const resource = JSON.parse(card.dataset.resourceData);
+            return JSON.stringify([resource.resource_type, resource.namespace, resource.name]);
+        };
+        container.querySelectorAll('.card[data-resource-data]').forEach(card => {
+            existing.set(keyFor(card), card.closest('.col'));
+        });
+        const keep = new Set();
+        columns.forEach((column, index) => {
+            const card = column.querySelector('.card');
+            const oldColumn = existing.get(keyFor(card));
+            let selectedColumn = column;
+            let restoreFocus = false;
+            if (oldColumn) {
+                const oldCard = oldColumn.querySelector('.card');
+                if (oldCard.dataset.resourceData === card.dataset.resourceData) {
+                    selectedColumn = oldColumn;
+                } else {
+                    restoreFocus = oldColumn.contains(document.activeElement);
+                    oldColumn.replaceWith(column);
+                }
+            }
+            keep.add(selectedColumn);
+            if (container.children[index] !== selectedColumn) {
+                container.insertBefore(selectedColumn, container.children[index] || null);
+            }
+            if (restoreFocus) selectedColumn.querySelector('.resource-action').focus({ preventScroll: true });
+        });
+        Array.from(container.children).forEach(column => {
+            if (!keep.has(column)) column.remove();
+        });
+    }
+
     function renderEmpty(container, text) {
+        if (container.textContent.trim() === text) return;
         container.innerHTML = `
             <div class="col-12">
                 <div class="alert alert-info text-center">
@@ -1242,7 +945,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateIngressContainer(ingresses) {
-        ingressContainer.innerHTML = '';
+        const cards = [];
         if (ingresses.length === 0) {
             renderEmpty(ingressContainer, 'No Ingress resources found matching the current filters.');
             return;
@@ -1256,12 +959,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 <p class="mb-0"><i class="bi bi-calendar-event me-2 text-primary"></i><strong>Created:</strong> <span class="text-secondary">${new Date(ingress.creation_timestamp).toLocaleString()}</span></p>
             `;
             ingress.resource_type = 'Ingress';
-            ingressContainer.appendChild(createResourceCard(ingress, index, showIngressYAML, detailsHtml, ingress.status));
+            cards.push(createResourceCard(ingress, index, showIngressYAML, detailsHtml, ingress.status));
         });
+        reconcileCards(ingressContainer, cards);
     }
 
     function updateHTTPRouteContainer(httproutes) {
-        httprouteContainer.innerHTML = '';
+        const cards = [];
         if (httproutes.length === 0) {
             renderEmpty(httprouteContainer, 'No HTTPRoute resources found matching the current filters.');
             return;
@@ -1275,12 +979,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 <p class="mb-0"><i class="bi bi-calendar-event me-2 text-primary"></i><strong>Created:</strong> <span class="text-secondary">${new Date(route.creation_timestamp).toLocaleString()}</span></p>
             `;
             route.resource_type = 'HTTPRoute';
-            httprouteContainer.appendChild(createResourceCard(route, index, showHTTPRouteYAML, detailsHtml, route.status));
+            cards.push(createResourceCard(route, index, showHTTPRouteYAML, detailsHtml, route.status));
         });
+        reconcileCards(httprouteContainer, cards);
     }
 
     function updateGatewayContainer(gateways) {
-        gatewayContainer.innerHTML = '';
+        const cards = [];
         if (gateways.length === 0) {
             renderEmpty(gatewayContainer, 'No Gateway resources found matching the current filters.');
             return;
@@ -1295,12 +1000,13 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             gateway.resource_type = 'Gateway';
             gateway.ingress_class = gateway.gateway_class;
-            gatewayContainer.appendChild(createResourceCard(gateway, index, showGatewayYAML, detailsHtml, gateway.status));
+            cards.push(createResourceCard(gateway, index, showGatewayYAML, detailsHtml, gateway.status));
         });
+        reconcileCards(gatewayContainer, cards);
     }
 
     function updateGatewayClassContainer(gatewayclasses) {
-        gatewayclassContainer.innerHTML = '';
+        const cards = [];
         if (gatewayclasses.length === 0) {
             renderEmpty(gatewayclassContainer, 'No GatewayClass resources found.');
             return;
@@ -1313,8 +1019,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 <p class="mb-0"><i class="bi bi-calendar-event me-2 text-primary"></i><strong>Created:</strong> <span class="text-secondary">${new Date(gatewayclass.creation_timestamp).toLocaleString()}</span></p>
             `;
             gatewayclass.resource_type = 'GatewayClass';
-            gatewayclassContainer.appendChild(createResourceCard(gatewayclass, index, showGatewayClassYAML, detailsHtml, gatewayclass.status));
+            cards.push(createResourceCard(gatewayclass, index, showGatewayClassYAML, detailsHtml, gatewayclass.status));
         });
+        reconcileCards(gatewayclassContainer, cards);
     }
 
     function getResourceBasicInfoRows(resource, resourceKind) {
@@ -1355,7 +1062,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (labelText === 'Hostname' || labelText === 'Hostnames') {
                 return `
                     <tr>
-                        <th style="width: 220px;">${escapeHtml(labelText)}</th>
+                        <th scope="row">${escapeHtml(labelText)}</th>
                         <td>${formatHostLinks(value)}</td>
                     </tr>
                 `;
@@ -1363,7 +1070,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             return `
                 <tr>
-                    <th style="width: 220px;">${escapeHtml(labelText)}</th>
+                    <th scope="row">${escapeHtml(labelText)}</th>
                     <td>${escapeHtml(String(value ?? 'N/A'))}</td>
                 </tr>
             `;
@@ -1371,112 +1078,99 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function showResourceYAML(resource, endpointBase, resourceKind) {
-        const loadingModalHtml = `
-            <div class="modal fade" id="resourceDetailModal" tabindex="-1">
-                <div class="modal-dialog modal-xl">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title"><i class="bi bi-file-earmark-code me-2"></i>Loading ${resourceKind} Details...</h5>
-                        </div>
-                        <div class="modal-body text-center py-5">
-                            <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
-                            <p class="mt-3">Fetching YAML configuration...</p>
-                        </div>
+        if (document.getElementById('resourceYAMLModal')) return;
+        const trigger = document.activeElement;
+        const modalElement = document.createElement('div');
+        modalElement.className = 'modal';
+        modalElement.id = 'resourceYAMLModal';
+        modalElement.tabIndex = -1;
+        modalElement.setAttribute('aria-labelledby', 'resourceModalTitle');
+        modalElement.innerHTML = `
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title" id="resourceModalTitle">${escapeHtml(resourceKind)}: ${escapeHtml(String(resource.name))}</h2>
+                        <button type="button" class="btn" data-bs-dismiss="modal" aria-label="Close resource details"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
                     </div>
+                    <div class="modal-body"></div>
                 </div>
-            </div>
-        `;
-
-        const loadingModalContainer = document.createElement('div');
-        loadingModalContainer.innerHTML = loadingModalHtml;
-        document.body.appendChild(loadingModalContainer);
-
-        const loadingModalElement = new bootstrap.Modal(document.getElementById('resourceDetailModal'));
-        loadingModalElement.show();
+            </div>`;
+        document.body.appendChild(modalElement);
+        const modal = new bootstrap.Modal(modalElement);
+        const body = modalElement.querySelector('.modal-body');
+        const controller = new AbortController();
+        let restoreRetryFocus = false;
+        modal.show();
 
         const yamlPath = endpointBase === '/gatewayclass/yaml'
-            ? `${endpointBase}/${resource.name}`
-            : `${endpointBase}/${resource.namespace}/${resource.name}`;
+            ? `${endpointBase}/${encodeURIComponent(resource.name)}`
+            : `${endpointBase}/${encodeURIComponent(resource.namespace)}/${encodeURIComponent(resource.name)}`;
 
-        fetch(yamlPath)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+        async function loadYAML() {
+            body.innerHTML = '<p role="status">Loading YAML configuration…</p>';
+            try {
+                const response = await fetch(yamlPath, { signal: controller.signal });
+                if (!response.ok) throw new Error(`Request returned HTTP ${response.status}`);
+                const data = await response.json();
+                if (typeof data.yaml !== 'string' || !data.yaml.trim() || data.yaml.startsWith('# Error generating YAML')) {
+                    throw new Error('The server could not provide YAML');
                 }
-                return response.json();
-            })
-            .then(data => {
-                loadingModalElement.hide();
-                setTimeout(() => {
-                    loadingModalContainer.remove();
-                }, 300);
-
-                const basicInfoRows = getResourceBasicInfoRows(resource, resourceKind);
-                const modalHtml = `
-                    <div class="modal fade" id="resourceYAMLModal" tabindex="-1">
-                        <div class="modal-dialog modal-xl">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title"><i class="bi bi-file-earmark-code me-2"></i>${resourceKind}: ${resource.name}</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <ul class="nav nav-tabs" id="resourceDetailTabs" role="tablist">
-                                        <li class="nav-item" role="presentation">
-                                            <button class="nav-link active" id="details-tab" data-bs-toggle="tab" data-bs-target="#details-view" type="button" role="tab">Details</button>
-                                        </li>
-                                        <li class="nav-item" role="presentation">
-                                            <button class="nav-link" id="yaml-tab" data-bs-toggle="tab" data-bs-target="#yaml-view" type="button" role="tab">YAML</button>
-                                        </li>
-                                    </ul>
-                                    <div class="tab-content pt-3">
-                                        <div class="tab-pane fade show active" id="details-view" role="tabpanel">
-                                            <div class="table-responsive">
-                                                <table class="table table-striped table-hover mb-0">
-                                                    <tbody>${basicInfoRows}</tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                        <div class="tab-pane fade" id="yaml-view" role="tabpanel">
-                                            <pre class="line-numbers"><code class="language-yaml">${escapeHtml(data.yaml || 'Failed to load YAML')}</code></pre>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                if (controller.signal.aborted) return;
+                body.innerHTML = `
+                    <ul class="nav nav-tabs" role="tablist" aria-label="Resource information">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="details-tab" data-bs-toggle="tab" data-bs-target="#details-view" type="button" role="tab" aria-controls="details-view" aria-selected="true">Details</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="yaml-tab" data-bs-toggle="tab" data-bs-target="#yaml-view" type="button" role="tab" aria-controls="yaml-view" aria-selected="false" tabindex="-1">YAML</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content pt-3">
+                        <div class="tab-pane show active" id="details-view" role="tabpanel" aria-labelledby="details-tab" tabindex="0">
+                            <table class="table mb-0"><tbody>${getResourceBasicInfoRows(resource, resourceKind)}</tbody></table>
                         </div>
+                        <div class="tab-pane" id="yaml-view" role="tabpanel" aria-labelledby="yaml-tab" tabindex="0">
+                            <pre class="line-numbers"><code class="language-yaml"></code></pre>
+                        </div>
+                    </div>`;
+                const code = body.querySelector('code');
+                code.textContent = data.yaml;
+                if (window.Prism) Prism.highlightElement(code);
+                // Bootstrap 5.3 initialises keyboard tab behavior on construction.
+                body.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => new bootstrap.Tab(tab));
+                if (restoreRetryFocus) body.querySelector('#details-tab').focus();
+            } catch (error) {
+                if (controller.signal.aborted) return;
+                body.innerHTML = `
+                    <div role="alert">
+                        <p class="mb-2">Could not load this ${escapeHtml(resourceKind)} configuration.</p>
+                        <p class="text-secondary">Check your connection and access to the resource, then retry.</p>
+                        <p class="small text-secondary">${escapeHtml(error.message)}</p>
                     </div>
-                `;
-
-                const modalContainer = document.createElement('div');
-                modalContainer.innerHTML = modalHtml;
-                document.body.appendChild(modalContainer);
-
-                const yamlModalElement = document.getElementById('resourceYAMLModal');
-                const modalInstance = new bootstrap.Modal(yamlModalElement);
-                modalInstance.show();
-
-                setTimeout(() => {
-                    if (window.Prism) {
-                        Prism.highlightAll();
-                    }
-                }, 100);
-
-                yamlModalElement.addEventListener('hidden.bs.modal', () => {
-                    modalInstance.dispose();
-                    modalContainer.remove();
-                    document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
-                    document.body.classList.remove('modal-open');
-                    document.body.style.removeProperty('overflow');
-                    document.body.style.removeProperty('padding-right');
+                    <button type="button" class="btn btn-primary" id="retryYAML">Retry loading YAML</button>`;
+                body.querySelector('#retryYAML').addEventListener('click', () => {
+                    restoreRetryFocus = true;
+                    modalElement.querySelector('[data-bs-dismiss="modal"]').focus();
+                    loadYAML();
                 });
-            })
-            .catch(error => {
-                loadingModalElement.hide();
-                setTimeout(() => {
-                    loadingModalContainer.remove();
-                }, 300);
-                console.error(`Error fetching ${resourceKind} YAML:`, error);
+                if (restoreRetryFocus) body.querySelector('#retryYAML').focus();
+            }
+        }
+
+        modalElement.addEventListener('hidden.bs.modal', () => {
+            controller.abort();
+            body.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => bootstrap.Tab.getInstance(tab)?.dispose());
+            modal.dispose();
+            modalElement.remove();
+            const matchingCard = Array.from(document.querySelectorAll('.card[data-resource-data]')).find(card => {
+                const current = JSON.parse(card.dataset.resourceData);
+                return current.resource_type === resource.resource_type && current.namespace === resource.namespace && current.name === resource.name;
             });
+            const returnTo = trigger?.isConnected ? trigger : matchingCard?.querySelector('.resource-action') || (selectedView === 'ingress' ? viewIngressBtn : viewGatewayBtn);
+            returnTo.focus({ preventScroll: true });
+        }, { once: true });
+        // Keep the dialog in place through loading, success and error.
+        loadYAML();
     }
 
     function showIngressYAML(ingress) {
@@ -1539,21 +1233,7 @@ document.addEventListener('DOMContentLoaded', function() {
         ensureOption(ingressClassFilter, activeFilters.ingress_class);
     }
 
-    // Add fadeInUp animation
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-    `;
-    document.head.appendChild(style);
+
 });
 </script>
 
