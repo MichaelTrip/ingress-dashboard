@@ -229,7 +229,7 @@ jobs:
           echo "\`\`\`" >> release_notes.md
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.semantic-version.outputs.version }}
           name: 🚀 Release ${{ needs.semantic-version.outputs.version }}
