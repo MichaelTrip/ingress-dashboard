@@ -1,6 +1,6 @@
 # Use a multi-stage build for efficiency
 # Stage 1: Build stage
-FROM python:3.13-slim-bookworm AS builder
+FROM python:3.15-slim-bookworm AS builder
 
 # Build arguments for versioning
 ARG APP_VERSION=dev
@@ -34,7 +34,7 @@ RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
 # Stage 2: Production stage
-FROM python:3.13-slim-bookworm
+FROM python:3.15-slim-bookworm
 
 # Pass build arguments to runtime
 ARG APP_VERSION=dev
